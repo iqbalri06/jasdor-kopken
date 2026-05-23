@@ -13,6 +13,7 @@ export default function CartPage() {
     removeItem,
     subtotal,
     discount,
+    discountCapped,
     serviceFee,
     total,
     DISCOUNT_MAX,
@@ -115,7 +116,7 @@ export default function CartPage() {
                       </div>
                       <div className="flex items-center justify-between mt-3">
                         <span className="text-sm md:text-base font-bold text-ink-900">
-                          {rupiah(it.price * it.qty)}
+                          {rupiah(Number(it.orig_price || it.price) * it.qty)}
                         </span>
                         <div className="flex items-center gap-2 bg-ink-100 rounded-full p-1">
                           <button
@@ -144,6 +145,21 @@ export default function CartPage() {
             {/* Summary */}
             <aside className="mt-4 md:mt-0">
               <div className="md:sticky md:top-20 space-y-3">
+                {/* Warning kalau diskon dicap */}
+                {discountCapped && (
+                  <div className="rounded-2xl border-2 border-dashed border-emerald-400 bg-emerald-50 p-3 md:p-4 flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-full bg-emerald-500 text-white grid place-items-center text-lg shrink-0">
+                      💡
+                    </div>
+                    <div className="flex-1 text-xs">
+                      <p className="font-semibold text-emerald-700">Diskon mencapai batas maksimal</p>
+                      <p className="text-emerald-700/80 mt-0.5 leading-relaxed">
+                        Diskon dicap di Rp 35.000. <b>Pisah jadi 2 pesanan</b> agar dapat 2× potongan!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Promo info */}
                 <div className="rounded-2xl border border-accent-200 bg-accent-50 p-3 md:p-4 flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full bg-ink-900 text-accent-200 grid place-items-center shrink-0">
@@ -166,12 +182,17 @@ export default function CartPage() {
                 <div className="rounded-2xl bg-white border border-ink-200 p-4 md:p-5">
                   <h3 className="text-sm font-semibold text-ink-900 mb-3">Ringkasan Tagihan</h3>
                   <div className="space-y-2 text-sm">
-                    <Row label="Subtotal" value={rupiah(subtotal)} />
+                    <Row label="Subtotal harga normal" value={rupiah(items.reduce((a, b) => a + Number(b.orig_price || b.price) * b.qty, 0))} valueClass="text-ink-400 line-through" />
                     <Row
-                      label="Diskon 50%"
+                      label={
+                        discountCapped
+                          ? `Hemat 50% (maks ${rupiah(35000)})`
+                          : 'Hemat 50%'
+                      }
                       value={`- ${rupiah(discount)}`}
                       valueClass="text-emerald-600 font-semibold"
                     />
+                    <Row label="Subtotal setelah diskon" value={rupiah(subtotal)} />
                     <Row label="Biaya jasa order" value={rupiah(serviceFee)} />
                   </div>
                   <div className="border-t border-ink-200 pt-3 mt-3 flex justify-between items-baseline">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { rupiah, useCart } from './CartContext';
+import { rupiah, useCart, applyDiscount } from './CartContext';
 import { fetchOptions } from './productOptions';
 
 export default function OptionsModal({ product, storeCode, store, prefetchedData, onClose, onAdded }) {
@@ -104,6 +104,8 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
 
   const unitPrice = basePrice + addonTotal;
   const totalPrice = unitPrice * qty;
+  // Tampilan estimasi setelah diskon (sebelum cap di cart level)
+  const totalPriceAfterDiscount = applyDiscount(totalPrice);
 
   const summary = useMemo(() => {
     const parts = [];
@@ -174,8 +176,7 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
       id: uniqueId,
       name: product.name,
       product_code: matched.product_code,
-      price: unitPrice,
-      orig_price: unitPrice,
+      price: unitPrice,    // harga asli (cart yg hitung diskon dengan cap)
       image: product.image,
       variant: summary,
       addons: selectedAddons,
@@ -316,7 +317,14 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
               className="flex-1 bg-ink-900 text-white rounded-2xl py-3 px-4 hover:bg-ink-800 disabled:bg-ink-300 active:scale-95 transition flex items-center justify-between font-semibold text-sm"
             >
               <span>Tambah ke Keranjang</span>
-              <span>{rupiah(totalPrice)}</span>
+              <span className="flex items-baseline gap-1.5">
+                {totalPrice > totalPriceAfterDiscount && (
+                  <span className="text-[11px] line-through opacity-60 font-normal">
+                    {rupiah(totalPrice)}
+                  </span>
+                )}
+                <span>{rupiah(totalPriceAfterDiscount)}</span>
+              </span>
             </button>
           </div>
         )}

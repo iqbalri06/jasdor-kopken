@@ -2,6 +2,8 @@
  * Helper untuk opsi produk.
  * Tentukan apakah sebuah produk punya opsi yang perlu dipilih user.
  */
+import { applyDiscount } from './CartContext';
+
 export function hasCustomization(data) {
   if (!data) return false;
   const dims = data.product_dimension_wording?.dimension_wordings || [];
@@ -26,18 +28,16 @@ export function hasCustomization(data) {
  */
 export function buildSimpleCartItem(product, data) {
   const map = data?.option_product_map || {};
-  // Untuk produk tanpa opsi, key biasanya string kosong "".
   const matched = map[''] || Object.values(map)[0] || null;
 
-  const price = matched ? Number(matched.price) : Number(data?.base_product?.price) || Number(product.price) || 0;
+  const origPrice = matched ? Number(matched.price) : Number(data?.base_product?.price) || Number(product.price) || 0;
   const productCode = matched?.product_code || product.product_code || `simple_${product.id}`;
 
   return {
     id: productCode,
     name: product.name || data?.base_product?.name || 'Produk',
     product_code: productCode,
-    price,
-    orig_price: Number(product.orig_price) || price,
+    price: origPrice,        // harga asli (cart yg hitung diskon dengan cap)
     image: product.image || data?.base_product?.image || '',
     variant: '',
     addons: [],

@@ -4,12 +4,23 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const CartContext = createContext(null);
 
-const STORAGE_KEY = 'jasdor-cart-v1';
+const STORAGE_KEY = 'jasdor-cart-v2';
+
+// Diskon 50% sudah otomatis dipotong di harga (display & calc)
+export const DISCOUNT_RATE = 0.5;
+export const DISCOUNT_MAX = 35000;
+export const SERVICE_FEE = 7000;
+
+// Harga setelah diskon 50% (dibulatkan ke rupiah penuh)
+export function applyDiscount(price) {
+  const n = Number(price) || 0;
+  return Math.round(n * (1 - DISCOUNT_RATE));
+}
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
   const [store, setStore] = useState(null);
-  const [pickup, setPickup] = useState({ type: 'now', time: '' }); // type: 'now' | 'later'
+  const [pickup, setPickup] = useState({ type: 'now', time: '' });
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -39,13 +50,15 @@ export function CartProvider({ children }) {
           p.id === product.id ? { ...p, qty: p.qty + 1 } : p
         );
       }
+      // Simpan harga asli (orig_price). Diskon dihitung di level cart dengan cap.
+      const origPrice = Number(product.price) || 0;
       return [
         ...prev,
         {
           id: product.id,
           name: product.name,
-          price: Number(product.price) || 0,
-          orig_price: Number(product.orig_price) || Number(product.price) || 0,
+          price: origPrice,        // harga asli (sebelum diskon)
+          orig_price: origPrice,   // alias kompatibilitas
           image: product.image,
           product_code: product.product_code,
           variant: product.variant || '',
@@ -75,19 +88,22 @@ export function CartProvider({ children }) {
     setPickup({ type: 'now', time: '' });
   }
 
-  const subtotal = useMemo(
-    () => items.reduce((acc, p) => acc + p.price * p.qty, 0),
+  // Subtotal harga normal (sebelum diskon)
+  const origSubtotal = useMemo(
+    () => items.reduce((acc, p) => acc + Number(p.orig_price || p.price) * p.qty, 0),
     [items]
   );
 
-  // Diskon 50% maksimal Rp 35.000
-  const DISCOUNT_RATE = 0.5;
-  const DISCOUNT_MAX = 35000;
-  const SERVICE_FEE = 7000;
+  // Diskon 50% dengan cap Rp 35.000
+  const discountUncapped = Math.floor(origSubtotal * DISCOUNT_RATE);
+  const totalDiscount = Math.min(discountUncapped, DISCOUNT_MAX);
+  const discountCapped = discountUncapped > DISCOUNT_MAX;
 
-  const discount = Math.min(Math.floor(subtotal * DISCOUNT_RATE), DISCOUNT_MAX);
+  // Subtotal akhir (setelah diskon dengan cap)
+  const subtotal = origSubtotal - totalDiscount;
+
   const serviceFee = items.length > 0 ? SERVICE_FEE : 0;
-  const total = Math.max(0, subtotal - discount) + serviceFee;
+  const total = subtotal + serviceFee;
   const totalQty = items.reduce((a, b) => a + b.qty, 0);
 
   const value = {
@@ -101,13 +117,16 @@ export function CartProvider({ children }) {
     updateQty,
     clear,
     subtotal,
-    discount,
+    origSubtotal,
+    discount: totalDiscount,
+    discountCapped,
     serviceFee,
     total,
     totalQty,
     DISCOUNT_RATE,
     DISCOUNT_MAX,
     SERVICE_FEE,
+    applyDiscount,
     hydrated,
   };
 

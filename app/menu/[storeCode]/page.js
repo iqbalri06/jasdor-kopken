@@ -400,8 +400,8 @@ export default function MenuPage({ params }) {
 }
 
 function ProductCard({ product, onAdd, loading }) {
-  const hasDiscount =
-    Number(product.orig_price) > Number(product.price) && Number(product.orig_price) > 0;
+  const origPrice = Number(product.price) || 0;
+  const finalPrice = Math.round(origPrice * 0.5);
   const soldOut = product.is_sold_out;
   const disabled = soldOut || loading;
 
@@ -418,9 +418,9 @@ function ProductCard({ product, onAdd, loading }) {
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl">☕</div>
         )}
-        {hasDiscount && (
+        {origPrice > 0 && (
           <span className="absolute top-2 left-2 bg-ink-900 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
-            HEMAT
+            HEMAT 50%
           </span>
         )}
         {soldOut && (
@@ -443,11 +443,11 @@ function ProductCard({ product, onAdd, loading }) {
         <div className="mt-auto pt-3">
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="text-sm md:text-base font-bold text-ink-900">
-              {rupiah(product.price)}
+              {rupiah(finalPrice)}
             </span>
-            {hasDiscount && (
+            {origPrice > finalPrice && (
               <span className="text-[10px] line-through text-ink-400">
-                {rupiah(product.orig_price)}
+                {rupiah(origPrice)}
               </span>
             )}
           </div>

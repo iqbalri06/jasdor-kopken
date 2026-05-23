@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { useCart, rupiah } from '@/components/CartContext';
+import { encodeOrder, generateOrderId } from '@/components/orderEncode';
 
 const ADMIN_WA = '6281291544061';
 
-// Helpers
 function pad(n) {
   return n.toString().padStart(2, '0');
 }
@@ -29,7 +29,6 @@ function isTimeWithin(time, open, close) {
   const t = tH * 60 + tM;
   const o = oH * 60 + oM;
   const c = cH * 60 + cM;
-  // close mungkin lewat tengah malam — anggap selalu lebih besar dari open
   return t >= o && t <= c;
 }
 
@@ -38,7 +37,9 @@ export default function CheckoutPage() {
     items,
     store,
     subtotal,
+    origSubtotal,
     discount,
+    discountCapped,
     serviceFee,
     total,
     clear,
@@ -50,8 +51,8 @@ export default function CheckoutPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [touched, setTouched] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Default pickup time = sekarang + 30 menit
   useEffect(() => {
     if (pickup.type === 'later' && !pickup.time) {
       setPickup({ type: 'later', time: addMinutes(nowHHMM(), 30) });
@@ -85,41 +86,61 @@ export default function CheckoutPage() {
       ? 'Ambil Sekarang (secepatnya)'
       : `Ambil Nanti pukul ${pickup.time || '-'}`;
 
-  const message = useMemo(() => {
-    const lines = [];
-    lines.push('*🧾 PESANAN KOPI KENANGAN by IQBAL*');
-    lines.push('────────────────────────');
-    lines.push(`*Nama Pelanggan:* ${name || '-'}`);
-    lines.push(`*No. WhatsApp:* ${phone || '-'}`);
-    lines.push(`*Waktu Ambil:* ${pickupLabel}`);
-    lines.push('');
-    if (store) {
-      lines.push('*Outlet:*');
-      lines.push(store.name);
-      lines.push(store.address || '');
-      lines.push('');
-    }
-    lines.push('*Detail Pesanan:*');
-    items.forEach((it, i) => {
-      const variant = it.variant ? ` (${it.variant})` : '';
-      lines.push(`${i + 1}. ${it.name}${variant} x${it.qty} = ${rupiah(it.price * it.qty)}`);
-    });
-    lines.push('────────────────────────');
-    lines.push(`Subtotal: ${rupiah(subtotal)}`);
-    lines.push(`Diskon 50% (maks 35rb): -${rupiah(discount)}`);
-    lines.push(`Biaya Jasa Order: ${rupiah(serviceFee)}`);
-    lines.push(`*TOTAL: ${rupiah(total)}*`);
-    lines.push('');
-    lines.push('Mohon konfirmasi pesanan saya. Terima kasih 🙏');
-    return lines.join('\n');
-  }, [name, phone, pickupLabel, items, store, subtotal, discount, serviceFee, total]);
-
   function handleSubmit(e) {
     e.preventDefault();
     setTouched(true);
-    if (hasError || items.length === 0) return;
+    if (hasError || items.length === 0 || submitting) return;
+
+    setSubmitting(true);
+
+    const orderId = generateOrderId();
+    const order = {
+      orderId,
+      createdAt: new Date().toISOString(),
+      customer: { name: name.trim(), phone: phone.trim() },
+      pickup,
+      store: store
+        ? {
+            code: store.code,
+            name: store.name,
+            address: store.address,
+          }
+        : null,
+      items: items.map((it) => ({
+        name: it.name,
+        product_code: it.product_code,
+        variant: it.variant || '',
+        price: Number(it.orig_price || it.price) || 0, // simpan harga asli
+        qty: it.qty,
+        image: it.image,
+      })),
+      subtotal,
+      origSubtotal,
+      discount,
+      discountCapped,
+      serviceFee,
+      total,
+    };
+
+    const token = encodeOrder(order);
+    const baseUrl =
+      typeof window !== 'undefined' ? window.location.origin : '';
+    const orderUrl = `${baseUrl}/order/${token}`;
+
+    const message = [
+      `Halo Admin, saya order via Jasa Order Kopi Kenangan.`,
+      ``,
+      `Nama: ${name.trim()}`,
+      `WA: ${phone.trim()}`,
+      `Total: ${rupiah(total)}`,
+      ``,
+      `Detail pesanan ${orderId}:`,
+      orderUrl,
+    ].join('\n');
+
     const url = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
+    setSubmitting(false);
   }
 
   if (hydrated && items.length === 0) {
@@ -152,9 +173,7 @@ export default function CheckoutPage() {
           onSubmit={handleSubmit}
           className="mt-4 md:mt-6 md:grid md:grid-cols-[1fr_360px] md:gap-6"
         >
-          {/* Left */}
           <div className="space-y-3 md:space-y-4">
-            {/* Customer info */}
             <section className="rounded-2xl bg-white border border-ink-200 p-4 md:p-6 space-y-4">
               <div>
                 <h2 className="text-sm md:text-base font-semibold text-ink-900">Data Pelanggan</h2>
@@ -190,7 +209,6 @@ export default function CheckoutPage() {
               </Field>
             </section>
 
-            {/* Pickup time */}
             <section className="rounded-2xl bg-white border border-ink-200 p-4 md:p-6 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -265,7 +283,6 @@ export default function CheckoutPage() {
               )}
             </section>
 
-            {/* Info */}
             <section className="rounded-2xl bg-ink-900 text-white p-4 md:p-5 flex gap-3">
               <div className="w-10 h-10 rounded-full bg-emerald-500 grid place-items-center text-lg shrink-0">
                 💬
@@ -275,13 +292,12 @@ export default function CheckoutPage() {
                 <p className="opacity-80 mt-0.5 leading-relaxed">
                   Setelah klik <span className="font-semibold text-white">Kirim ke WhatsApp</span>,
                   kamu akan diarahkan ke chat admin di <span className="font-semibold">0812-9154-4061</span>
-                  . Cukup kirim pesannya untuk diproses.
+                  . Cukup kirim pesannya — admin akan melihat detail pesanan via link.
                 </p>
               </div>
             </section>
           </div>
 
-          {/* Right: order summary */}
           <aside className="mt-3 md:mt-0">
             <div className="md:sticky md:top-20 space-y-3">
               <section className="rounded-2xl bg-white border border-ink-200 p-4 md:p-5">
@@ -309,19 +325,28 @@ export default function CheckoutPage() {
                         )}
                       </div>
                       <span className="font-medium whitespace-nowrap shrink-0 text-ink-700">
-                        x{it.qty} · {rupiah(it.price * it.qty)}
+                        x{it.qty} · {rupiah(Number(it.orig_price || it.price) * it.qty)}
                       </span>
                     </li>
                   ))}
                 </ul>
 
                 <div className="border-t border-ink-200 mt-3 pt-3 space-y-1.5 text-xs">
-                  <Row label="Subtotal" value={rupiah(subtotal)} />
-                  <Row
-                    label="Diskon 50%"
-                    value={`- ${rupiah(discount)}`}
-                    valueClass="text-emerald-600 font-semibold"
-                  />
+                  {origSubtotal > subtotal && (
+                    <Row
+                      label="Subtotal harga normal"
+                      value={rupiah(origSubtotal)}
+                      valueClass="text-ink-400 line-through"
+                    />
+                  )}
+                  {discount > 0 && (
+                    <Row
+                      label={discountCapped ? `Hemat 50% (maks ${rupiah(35000)})` : 'Hemat 50%'}
+                      value={`- ${rupiah(discount)}`}
+                      valueClass="text-emerald-600 font-semibold"
+                    />
+                  )}
+                  <Row label="Subtotal setelah diskon" value={rupiah(subtotal)} />
                   <Row label="Biaya jasa order" value={rupiah(serviceFee)} />
                 </div>
                 <div className="border-t border-ink-200 mt-2 pt-2 flex justify-between items-baseline">
@@ -329,11 +354,11 @@ export default function CheckoutPage() {
                   <span className="font-bold text-xl text-ink-900">{rupiah(total)}</span>
                 </div>
 
-                {/* Desktop submit */}
                 <div className="hidden md:flex flex-col gap-2 mt-4">
                   <button
                     type="submit"
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl px-4 py-3.5 active:scale-95 transition flex items-center justify-center gap-2 font-semibold text-sm"
+                    disabled={submitting}
+                    className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 active:scale-95 transition flex items-center justify-center gap-2 font-semibold text-sm"
                   >
                     <WhatsAppIcon />
                     Kirim ke WhatsApp
@@ -355,7 +380,6 @@ export default function CheckoutPage() {
             </div>
           </aside>
 
-          {/* Mobile submit */}
           <div className="md:hidden fixed bottom-3 left-0 right-0 z-40">
             <div className="max-w-md mx-auto px-4 flex gap-2">
               <button
@@ -372,7 +396,8 @@ export default function CheckoutPage() {
               </button>
               <button
                 type="submit"
-                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl px-4 py-3.5 shadow-card active:scale-[.98] flex items-center justify-center gap-2 font-semibold text-sm transition"
+                disabled={submitting}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 shadow-card active:scale-[.98] flex items-center justify-center gap-2 font-semibold text-sm transition"
               >
                 <WhatsAppIcon />
                 Kirim ke WA
