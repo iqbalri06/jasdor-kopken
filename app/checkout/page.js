@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { useCart, rupiah } from '@/components/CartContext';
-import { encodeOrder, generateOrderId } from '@/components/orderEncode';
+import { generateOrderId } from '@/components/orderEncode';
 
 const ADMIN_WA = '6281291544061';
 
@@ -86,7 +86,7 @@ export default function CheckoutPage() {
       ? 'Ambil Sekarang (secepatnya)'
       : `Ambil Nanti pukul ${pickup.time || '-'}`;
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setTouched(true);
     if (hasError || items.length === 0 || submitting) return;
@@ -110,9 +110,8 @@ export default function CheckoutPage() {
         name: it.name,
         product_code: it.product_code,
         variant: it.variant || '',
-        price: Number(it.orig_price || it.price) || 0, // simpan harga asli
+        price: Number(it.orig_price || it.price) || 0,
         qty: it.qty,
-        image: it.image,
       })),
       subtotal,
       origSubtotal,
@@ -122,10 +121,23 @@ export default function CheckoutPage() {
       total,
     };
 
-    const token = encodeOrder(order);
-    const baseUrl =
-      typeof window !== 'undefined' ? window.location.origin : '';
-    const orderUrl = `${baseUrl}/order/${token}`;
+    let orderUrl;
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      });
+      const json = await res.json();
+      if (json.error_code !== 0 || !json.id) throw new Error(json.msg || 'Gagal menyimpan');
+
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      orderUrl = `${baseUrl}/order/${json.id}`;
+    } catch (err) {
+      alert('Gagal menyimpan pesanan: ' + (err.message || 'unknown'));
+      setSubmitting(false);
+      return;
+    }
 
     const message = [
       `Halo Admin, saya order via Jasa Order Kopi Kenangan.`,

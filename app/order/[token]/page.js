@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
-import { decodeOrder } from '@/components/orderEncode';
 
 function rupiah(n) {
   if (n == null || isNaN(n)) return 'Rp 0';
@@ -22,12 +21,24 @@ export default function OrderDetailPage({ params }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const decoded = decodeOrder(params.token);
-    if (!decoded) {
-      setError('Link pesanan tidak valid atau rusak.');
-      return;
+    let cancel = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(params.token)}`);
+        const json = await res.json();
+        if (cancel) return;
+        if (json.error_code !== 0 || !json.data) {
+          throw new Error(json.msg || 'Order tidak ditemukan');
+        }
+        setOrder(json.data);
+      } catch (e) {
+        if (!cancel) setError(e.message || 'Order tidak ditemukan');
+      }
     }
-    setOrder(decoded);
+    load();
+    return () => {
+      cancel = true;
+    };
   }, [params.token]);
 
   function copyLink() {
