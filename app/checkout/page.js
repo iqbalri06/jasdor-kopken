@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import { useCart, rupiah } from '@/components/CartContext';
-import { generateOrderId } from '@/components/orderEncode';
+import { encodeOrder, generateOrderId } from '@/components/orderEncode';
 
 const ADMIN_WA = '6281291544061';
 
@@ -86,7 +86,7 @@ export default function CheckoutPage() {
       ? 'Ambil Sekarang (secepatnya)'
       : `Ambil Nanti pukul ${pickup.time || '-'}`;
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault();
     setTouched(true);
     if (hasError || items.length === 0 || submitting) return;
@@ -121,23 +121,9 @@ export default function CheckoutPage() {
       total,
     };
 
-    let orderUrl;
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      });
-      const json = await res.json();
-      if (json.error_code !== 0 || !json.id) throw new Error(json.msg || 'Gagal menyimpan');
-
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      orderUrl = `${baseUrl}/order/${json.id}`;
-    } catch (err) {
-      alert('Gagal menyimpan pesanan: ' + (err.message || 'unknown'));
-      setSubmitting(false);
-      return;
-    }
+    const token = encodeOrder(order);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const orderUrl = `${baseUrl}/order/${token}`;
 
     const message = [
       `Halo Admin, saya order via Jasa Order Kopi Kenangan.`,
@@ -152,7 +138,14 @@ export default function CheckoutPage() {
 
     const url = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
+
+    // Kosongkan keranjang setelah order terkirim
+    clear();
+
     setSubmitting(false);
+
+    // Arahkan ke halaman order detail agar user bisa lihat pesanannya
+    router.push(`/order/${token}`);
   }
 
   if (hydrated && items.length === 0) {
