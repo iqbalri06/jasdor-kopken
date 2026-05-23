@@ -83,7 +83,7 @@ export function CartProvider({ children }) {
   // Diskon 50% maksimal Rp 35.000
   const DISCOUNT_RATE = 0.5;
   const DISCOUNT_MAX = 35000;
-  const SERVICE_FEE = 5000;
+  const SERVICE_FEE = 7000;
 
   const discount = Math.min(Math.floor(subtotal * DISCOUNT_RATE), DISCOUNT_MAX);
   const serviceFee = items.length > 0 ? SERVICE_FEE : 0;
