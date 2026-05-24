@@ -12,33 +12,51 @@ export default function HomePage() {
   const [stores, setStores] = useState([]);
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [searched, setSearched] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalStores, setTotalStores] = useState(0);
 
   const { setStore } = useCart();
 
-  async function search(q) {
+  async function search(q, pageIndex = 1, append = false) {
     if (!q.trim()) return;
-    setLoading(true);
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     setError('');
     setSearched(true);
     try {
-      const res = await fetch(`/api/stores?query=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/stores?query=${encodeURIComponent(q)}&page_index=${pageIndex}&page_size=20`
+      );
       const json = await res.json();
       if (json.error_code !== 0) throw new Error(json.msg || 'Gagal memuat data');
-      setStores(json.data?.store || []);
+      const newStores = json.data?.store || [];
+      setStores((prev) => (append ? [...prev, ...newStores] : newStores));
       setBrands(json.data?.all_brand_and_image || []);
+      setPage(json.data?.page_index || pageIndex);
+      setTotalPages(json.data?.pages || 1);
+      setTotalStores(json.data?.total || newStores.length);
     } catch (e) {
       setError(e.message || 'Terjadi kesalahan');
-      setStores([]);
+      if (!append) setStores([]);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }
 
   function onSubmit(e) {
     e.preventDefault();
-    search(query);
+    search(query, 1, false);
+  }
+
+  function loadMore() {
+    if (page < totalPages && !loadingMore) {
+      search(query, page + 1, true);
+    }
   }
 
   return (
@@ -93,7 +111,7 @@ export default function HomePage() {
                     key={p}
                     onClick={() => {
                       setQuery(p);
-                      search(p);
+                      search(p, 1, false);
                     }}
                     className="text-xs bg-white border border-ink-200 px-3 py-1.5 rounded-full hover:border-ink-900 hover:bg-ink-900 hover:text-white text-ink-700 transition"
                   >
@@ -202,7 +220,9 @@ export default function HomePage() {
               {searched ? `Hasil untuk "${query}"` : 'Mulai dengan mencari outlet'}
             </h3>
             {!loading && stores.length > 0 && (
-              <span className="text-xs text-ink-500">{stores.length} outlet</span>
+              <span className="text-xs text-ink-500">
+                {stores.length} dari {totalStores} outlet
+              </span>
             )}
           </div>
 
@@ -236,11 +256,39 @@ export default function HomePage() {
           )}
 
           {!loading && stores.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {stores.map((s) => (
-                <StoreCard key={s.id} store={s} onSelect={() => setStore(s)} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                {stores.map((s) => (
+                  <StoreCard key={s.id} store={s} onSelect={() => setStore(s)} />
+                ))}
+              </div>
+
+              {page < totalPages && (
+                <div className="mt-5 flex justify-center">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="bg-white border border-ink-200 hover:border-ink-900 text-ink-900 text-sm font-semibold px-6 py-3 rounded-2xl transition disabled:opacity-50 inline-flex items-center gap-2"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        Memuat...
+                      </>
+                    ) : (
+                      <>
+                        Muat {Math.min(20, totalStores - stores.length)} outlet lagi
+                        <span className="text-ink-500 text-xs">
+                          ({stores.length}/{totalStores})
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
