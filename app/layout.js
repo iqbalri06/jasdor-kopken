@@ -1,5 +1,6 @@
 import './globals.css';
 import { CartProvider } from '@/components/CartContext';
+import { ServiceStatusProvider, ServiceClosedBanner } from '@/components/ServiceStatus';
 import WelcomeModal from '@/components/WelcomeModal';
 
 export const metadata = {
@@ -19,10 +20,14 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="font-sans min-h-screen">
-        <CartProvider>
-          {children}
-          <WelcomeModal />
-        </CartProvider>
+        <ServiceStatusProvider>
+          <CartProvider>
+            <ServiceClosedBanner>
+              {children}
+              <WelcomeModal />
+            </ServiceClosedBanner>
+          </CartProvider>
+        </ServiceStatusProvider>
       </body>
     </html>
   );

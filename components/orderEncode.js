@@ -94,6 +94,8 @@ function compact(o) {
   if (o.discountCapped) out.dc = 1;
   if (o.serviceFee != null) out.f = o.serviceFee;
   if (o.total != null) out.tt = o.total;
+  if (o.uniqueCode != null) out.uc = o.uniqueCode;
+  if (o.totalToPay != null) out.tp = o.totalToPay;
   return out;
 }
 
@@ -123,6 +125,8 @@ function expand(c) {
     discountCapped: !!c.dc,
     serviceFee: c.f ?? 0,
     total: c.tt ?? 0,
+    uniqueCode: c.uc ?? null,
+    totalToPay: c.tp ?? null,
   };
 }
 

@@ -6,6 +6,8 @@ import Header from '@/components/Header';
 import { useCart, rupiah } from '@/components/CartContext';
 import { encodeOrder, generateOrderId } from '@/components/orderEncode';
 import { Icon } from '@/components/Icons';
+import { useServiceStatus } from '@/components/ServiceStatus';
+import { saveOrderToHistory } from '@/app/orders/page';
 
 const ADMIN_WA = '6281291544061';
 
@@ -53,6 +55,7 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState('');
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const serviceStatus = useServiceStatus();
 
   useEffect(() => {
     if (pickup.type === 'later' && !pickup.time) {
@@ -87,12 +90,20 @@ export default function CheckoutPage() {
       ? 'Ambil Sekarang (secepatnya)'
       : `Ambil Nanti pukul ${pickup.time || '-'}`;
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setTouched(true);
     if (hasError || items.length === 0 || submitting) return;
 
+    if (!serviceStatus.open) {
+      alert('Maaf, layanan sedang tutup. ' + (serviceStatus.message || 'Silakan coba lagi nanti.'));
+      return;
+    }
+
     setSubmitting(true);
+
+    // Generate kode unik 3 digit (100-999)
+    const uniqueCode = Math.floor(Math.random() * 900) + 100;
 
     const orderId = generateOrderId();
     const order = {
@@ -120,34 +131,32 @@ export default function CheckoutPage() {
       discount,
       discountCapped,
       serviceFee,
-      total,
+      total,           // total tanpa kode unik
+      uniqueCode,      // kode unik 3 digit
+      totalToPay: total + uniqueCode, // total final yang harus dibayar
     };
 
     const token = encodeOrder(order);
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    const orderUrl = `${baseUrl}/order/${token}`;
 
-    const message = [
-      `Halo Admin, saya order via Jasa Order Kopi Kenangan.`,
-      ``,
-      `Nama: ${name.trim()}`,
-      `WA: ${phone.trim()}`,
-      `Total: ${rupiah(total)}`,
-      ``,
-      `Detail pesanan ${orderId}:`,
-      orderUrl,
-    ].join('\n');
+    // Simpan order ke database
+    try {
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      });
+    } catch (_) {}
 
-    const url = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    // Simpan ke riwayat user
+    saveOrderToHistory(orderId);
 
-    // Kosongkan keranjang setelah order terkirim
+    // Kosongkan keranjang
     clear();
-
     setSubmitting(false);
 
-    // Arahkan ke halaman order detail agar user bisa lihat pesanannya
-    router.push(`/order/${token}`);
+    // Arahkan ke halaman pembayaran (bukan langsung WA)
+    router.push(`/payment/${token}`);
   }
 
   if (hydrated && items.length === 0) {
@@ -292,14 +301,14 @@ export default function CheckoutPage() {
             </section>
 
             <section className="rounded-2xl bg-ink-900 text-white p-4 md:p-5 flex gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 grid place-items-center shrink-0 text-white">
-                <Icon.WhatsApp size={18} />
+              <div className="w-10 h-10 rounded-full bg-white/15 grid place-items-center shrink-0 text-white">
+                <Icon.Info size={18} />
               </div>
               <div className="text-xs md:text-sm">
-                <p className="font-semibold">Cara order</p>
+                <p className="font-semibold">Langkah selanjutnya</p>
                 <p className="opacity-80 mt-0.5 leading-relaxed">
-                  Klik tombol <span className="font-semibold text-white">Kirim ke WhatsApp</span>,
-                  cukup tekan tombol kirim di chat. Selesai — admin akan memproses pesanan kamu.
+                  Setelah klik <span className="font-semibold text-white">Lanjut ke Pembayaran</span>,
+                  kamu akan diarahkan ke halaman pembayaran. Bayar lalu upload bukti transfer.
                 </p>
               </div>
             </section>
@@ -384,10 +393,10 @@ export default function CheckoutPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 active:scale-95 transition flex items-center justify-center gap-2 font-semibold text-sm"
+                    className="w-full bg-ink-900 hover:bg-ink-800 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 active:scale-95 transition flex items-center justify-center gap-2 font-semibold text-sm"
                   >
-                    <WhatsAppIcon />
-                    Kirim ke WhatsApp
+                    {submitting ? <Icon.Spinner size={14} /> : <Icon.ArrowRight size={16} />}
+                    Lanjut ke Pembayaran
                   </button>
                   <button
                     type="button"
@@ -423,10 +432,10 @@ export default function CheckoutPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 shadow-card active:scale-[.98] flex items-center justify-center gap-2 font-semibold text-sm transition"
+                className="flex-1 bg-ink-900 hover:bg-ink-800 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 shadow-card active:scale-[.98] flex items-center justify-center gap-2 font-semibold text-sm transition"
               >
-                <WhatsAppIcon />
-                Kirim ke WA
+                {submitting ? <Icon.Spinner size={14} /> : <Icon.ArrowRight size={16} />}
+                Lanjut Bayar
               </button>
             </div>
           </div>
@@ -467,7 +476,7 @@ function PickupOption({ active, onClick, icon, title, desc }) {
 }
 
 function WhatsAppIcon() {
-  return <Icon.WhatsApp size={18} />;
+  return null;
 }
 
 function Field({ label, children, error, required, hint }) {
