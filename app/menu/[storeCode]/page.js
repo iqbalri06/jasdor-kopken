@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OptionsModal from '@/components/OptionsModal';
+import DiscountCapModal from '@/components/DiscountCapModal';
 import { fetchOptions, hasCustomization, buildSimpleCartItem } from '@/components/productOptions';
-import { useCart, rupiah } from '@/components/CartContext';
+import { useCart, rupiah, applyDiscount } from '@/components/CartContext';
+import { Icon } from '@/components/Icons';
 
 const EXCLUDED_GROUP_KEYWORDS = ['promo', 'combo', 'bundle', 'paket'];
 const EXCLUDED_TYPE_CODES = [4004];
@@ -33,26 +35,73 @@ export default function MenuPage({ params }) {
   const [prefetchedOptions, setPrefetchedOptions] = useState(null);
   const [loadingProductId, setLoadingProductId] = useState(null);
   const [toast, setToast] = useState('');
+  const [capModal, setCapModal] = useState({ open: false, mode: 'over', lostSaving: 0 });
+  const pendingActionRef = useRef(null);
 
-  const { store, addItem, totalQty, total } = useCart();
+  const { items, store, addItem, totalQty, total, origSubtotal, DISCOUNT_RATE, DISCOUNT_MAX } = useCart();
 
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(''), 1800);
   }
 
+  /**
+   * Cek apakah penambahan produk akan membuat diskon melewati cap.
+   * Jika perlu konfirmasi: tampilkan modal & simpan action di pendingActionRef.
+   * Jika tidak perlu: langsung jalankan action.
+   */
+  function withDiscountCheck(addedOrigPrice, addedQty, action) {
+    const currentDiscount = Math.floor(origSubtotal * DISCOUNT_RATE);
+    if (currentDiscount >= DISCOUNT_MAX) {
+      pendingActionRef.current = action;
+      setCapModal({ open: true, mode: 'capped', lostSaving: 0 });
+      return;
+    }
+    const newOrig = origSubtotal + (Number(addedOrigPrice) || 0) * (addedQty || 1);
+    const newDiscount = Math.floor(newOrig * DISCOUNT_RATE);
+    if (newDiscount > DISCOUNT_MAX) {
+      pendingActionRef.current = action;
+      setCapModal({
+        open: true,
+        mode: 'over',
+        lostSaving: newDiscount - DISCOUNT_MAX,
+      });
+      return;
+    }
+    action();
+  }
+
+  function handleCapConfirm() {
+    const fn = pendingActionRef.current;
+    pendingActionRef.current = null;
+    setCapModal((c) => ({ ...c, open: false }));
+    if (fn) fn();
+  }
+
+  function handleCapCancel() {
+    pendingActionRef.current = null;
+    setCapModal((c) => ({ ...c, open: false }));
+  }
+
   async function handleAddProduct(product) {
     if (loadingProductId) return;
+
     setLoadingProductId(product.id);
     try {
       const optData = await fetchOptions(product, storeCode);
+
       if (hasCustomization(optData)) {
+        // Buka modal opsi — pengecekan diskon dilakukan di dalam modal saat user klik "Tambah".
         setPrefetchedOptions(optData);
         setSelectedProduct(product);
       } else {
+        // Produk tanpa opsi → cek diskon di sini, lalu langsung tambah.
         const item = buildSimpleCartItem(product, optData);
-        addItem(item, store);
-        showToast('Berhasil ditambahkan ke keranjang');
+        const itemPrice = Number(item.price) || 0;
+        withDiscountCheck(itemPrice, 1, () => {
+          addItem(item, store);
+          showToast('Berhasil ditambahkan ke keranjang');
+        });
       }
     } catch (e) {
       showToast(e.message || 'Gagal menambahkan produk');
@@ -161,7 +210,9 @@ export default function MenuPage({ params }) {
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full grid place-items-center text-5xl">☕</div>
+                    <div className="w-full h-full grid place-items-center text-ink-400">
+                      <Icon.Store size={56} />
+                    </div>
                   )}
                 </div>
                 <div className="flex-1 p-4 md:p-5">
@@ -212,10 +263,7 @@ export default function MenuPage({ params }) {
         {/* Search bar */}
         <section className="mt-4">
           <div className="flex items-center gap-2 bg-white border border-ink-200 rounded-2xl px-4 py-3 hover:border-ink-400 focus-within:border-ink-900 transition">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
+            <span className="text-ink-500"><Icon.Search size={18} /></span>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -225,10 +273,10 @@ export default function MenuPage({ params }) {
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="text-ink-500 hover:text-ink-900 text-sm"
+                className="text-ink-500 hover:text-ink-900"
                 aria-label="Hapus pencarian"
               >
-                ✕
+                <Icon.Close size={14} />
               </button>
             )}
           </div>
@@ -323,8 +371,8 @@ export default function MenuPage({ params }) {
 
                 {products.length === 0 ? (
                   <div className="rounded-2xl bg-white border border-ink-200 p-10 text-center mt-3">
-                    <div className="w-14 h-14 mx-auto rounded-full bg-ink-100 grid place-items-center mb-3 text-2xl">
-                      ☕
+                    <div className="w-14 h-14 mx-auto rounded-full bg-ink-100 grid place-items-center mb-3 text-ink-400">
+                      <Icon.Coffee size={28} />
                     </div>
                     <p className="text-sm font-semibold text-ink-900">
                       {search ? 'Menu tidak ditemukan' : 'Belum ada menu di kategori ini'}
@@ -358,6 +406,7 @@ export default function MenuPage({ params }) {
           storeCode={storeCode}
           store={store}
           prefetchedData={prefetchedOptions}
+          checkDiscountCap={withDiscountCheck}
           onClose={() => {
             setSelectedProduct(null);
             setPrefetchedOptions(null);
@@ -365,6 +414,16 @@ export default function MenuPage({ params }) {
           onAdded={() => showToast('Berhasil ditambahkan ke keranjang')}
         />
       )}
+
+      {/* Discount cap warning */}
+      <DiscountCapModal
+        open={capModal.open}
+        mode={capModal.mode}
+        lostSaving={capModal.lostSaving}
+        max={DISCOUNT_MAX}
+        onCancel={handleCapCancel}
+        onConfirm={handleCapConfirm}
+      />
 
       {/* Toast */}
       {toast && (
@@ -401,7 +460,7 @@ export default function MenuPage({ params }) {
 
 function ProductCard({ product, onAdd, loading }) {
   const origPrice = Number(product.price) || 0;
-  const finalPrice = Math.round(origPrice * 0.5);
+  const finalPrice = applyDiscount(origPrice);
   const soldOut = product.is_sold_out;
   const disabled = soldOut || loading;
 
@@ -416,7 +475,9 @@ function ProductCard({ product, onAdd, loading }) {
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl">☕</div>
+          <div className="w-full h-full flex items-center justify-center text-ink-400">
+            <Icon.Coffee size={36} />
+          </div>
         )}
         {origPrice > 0 && (
           <span className="absolute top-2 left-2 bg-ink-900 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
@@ -460,17 +521,12 @@ function ProductCard({ product, onAdd, loading }) {
               'Habis'
             ) : loading ? (
               <>
-                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
+                <Icon.Spinner size={14} />
                 Memuat
               </>
             ) : (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14" />
-                  <path d="M12 5v14" />
-                </svg>
+                <Icon.Plus size={14} />
                 Tambah
               </>
             )}

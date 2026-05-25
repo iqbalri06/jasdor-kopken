@@ -84,6 +84,7 @@ function compact(o) {
       const obj = { n: it.name, p: Number(it.price) || 0, q: Number(it.qty) || 1 };
       if (it.variant) obj.v = it.variant;
       if (it.product_code) obj.c = it.product_code;
+      if (it.image) obj.m = it.image;
       return obj;
     });
   }
@@ -113,7 +114,7 @@ function expand(c) {
           price: Number(it.p) || 0,
           qty: Number(it.q) || 1,
           product_code: it.c || '',
-          image: '',
+          image: it.m || '',
         }))
       : [],
     subtotal: c.sb ?? 0,

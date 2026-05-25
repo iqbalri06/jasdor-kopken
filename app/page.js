@@ -1,16 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
-import { useCart } from '@/components/CartContext';
+import HowToOrderModal from '@/components/HowToOrderModal';
+import { Icon } from '@/components/Icons';
+import { useCart, rupiah, applyDiscount } from '@/components/CartContext';
 
-const POPULAR = ['Rancamaya', 'Bogor', 'Jakarta', 'Bandung', 'Depok', 'Bekasi'];
+const PREVIEW_STORE_CODE = 'KK.BGR.RKRNCMYA';
+
+const EXCLUDED_GROUP_KEYWORDS = ['promo', 'combo', 'bundle', 'paket'];
+const EXCLUDED_TYPE_CODES = [4004];
+
+function isExcludedGroup(group) {
+  const name = (group.group_name || '').toLowerCase();
+  return EXCLUDED_GROUP_KEYWORDS.some((k) => name.includes(k));
+}
+function isExcludedProduct(p) {
+  if (p.is_combo_v2) return true;
+  if (p.is_mix_match) return true;
+  if (EXCLUDED_TYPE_CODES.includes(p.type_code)) return true;
+  return false;
+}
 
 export default function HomePage() {
+  const { setStore } = useCart();
+
   const [query, setQuery] = useState('');
   const [stores, setStores] = useState([]);
-  const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +36,62 @@ export default function HomePage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalStores, setTotalStores] = useState(0);
 
-  const { setStore } = useCart();
+  const [previewMenu, setPreviewMenu] = useState([]);
+  const [previewLoading, setPreviewLoading] = useState(true);
+  const [activeGroup, setActiveGroup] = useState(null);
+
+  const [howToOpen, setHowToOpen] = useState(false);
+
+  const searchInputRef = useRef(null);
+  const searchSectionRef = useRef(null);
+
+  useEffect(() => {
+    let cancel = false;
+    async function load() {
+      setPreviewLoading(true);
+      try {
+        const res = await fetch(`/api/menu?store_code=${PREVIEW_STORE_CODE}`);
+        const json = await res.json();
+        if (cancel) return;
+        if (json.error_code !== 0) return;
+
+        const groups = (json.data?.menu_groups || [])
+          .filter((g) => !isExcludedGroup(g))
+          .map((g) => ({
+            ...g,
+            menu_products: (g.menu_products || []).filter((p) => !isExcludedProduct(p)),
+          }))
+          .filter((g) => g.menu_products.length > 0);
+
+        if (groups.length === 0) return;
+
+        const seen = new Set();
+        const all = [];
+        for (const g of groups) {
+          for (const p of g.menu_products) {
+            if (seen.has(p.id)) continue;
+            seen.add(p.id);
+            all.push(p);
+          }
+        }
+
+        const groupsWithAll = [
+          { group_code: '__all__', group_name: 'Semua', menu_products: all },
+          ...groups,
+        ];
+        setPreviewMenu(groupsWithAll);
+        setActiveGroup('__all__');
+      } catch (_) {
+        // ignore
+      } finally {
+        if (!cancel) setPreviewLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
   async function search(q, pageIndex = 1, append = false) {
     if (!q.trim()) return;
@@ -35,7 +107,6 @@ export default function HomePage() {
       if (json.error_code !== 0) throw new Error(json.msg || 'Gagal memuat data');
       const newStores = json.data?.store || [];
       setStores((prev) => (append ? [...prev, ...newStores] : newStores));
-      setBrands(json.data?.all_brand_and_image || []);
       setPage(json.data?.page_index || pageIndex);
       setTotalPages(json.data?.pages || 1);
       setTotalStores(json.data?.total || newStores.length);
@@ -59,252 +130,267 @@ export default function HomePage() {
     }
   }
 
+  function clearSearch() {
+    setQuery('');
+    setSearched(false);
+    setStores([]);
+    setError('');
+    searchInputRef.current?.focus();
+  }
+
+  function focusSearch() {
+    searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => searchInputRef.current?.focus(), 350);
+  }
+
+  function handleProductClick() {
+    setHowToOpen(true);
+  }
+
+  function handleHowToPrimary() {
+    setHowToOpen(false);
+    focusSearch();
+  }
+
+  const currentGroup =
+    previewMenu.find((g) => g.group_code === activeGroup) || previewMenu[0] || null;
+  const products = currentGroup?.menu_products || [];
+
   return (
     <main className="pb-24">
-      <Header title="Jasa Order Kopi Kenangan" subtitle="Iqbal Roudatul" />
+      <Header title="Jasa Order Kopi Kenangan" subtitle="Iqbal" />
 
-      <div className="max-w-6xl mx-auto px-4 md:px-6">
-        {/* HERO */}
-        <section className="pt-6 md:pt-12">
-          <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-            <div>
-              <span className="inline-flex items-center gap-2 text-xs font-medium text-ink-700 bg-ink-100 px-3 py-1.5 rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Diskon 50% • Maks Rp 35.000
-              </span>
-              <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-ink-900 leading-[1.1] mt-4">
-                Pesan kopi
-                <br />
-                <span className="text-accent-500">tanpa ribet.</span>
-              </h2>
-              <p className="text-sm md:text-base text-ink-600 mt-4 max-w-md leading-relaxed">
-                Cari outlet Kopi Kenangan terdekat, pilih menu favoritmu, dan kirim pesanan langsung ke admin lewat WhatsApp.
+      <div className="max-w-3xl mx-auto px-4 md:px-6 pt-3 md:pt-4">
+        {/* Pilih Outlet CTA - prominent above search */}
+        <section ref={searchSectionRef}>
+          <button
+            type="button"
+            onClick={() => searchInputRef.current?.focus()}
+            className="w-full bg-gradient-to-r from-ink-900 to-accent-700 text-white rounded-2xl p-4 flex items-center gap-3 hover:opacity-95 active:scale-[.99] transition shadow-card"
+          >
+            <div className="w-11 h-11 rounded-2xl bg-white/15 backdrop-blur grid place-items-center shrink-0">
+              <Icon.Pin size={22} />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
+                Pilih Outlet
               </p>
+              <p className="text-sm font-bold mt-0.5">Cari outlet Kopi Kenangan terdekat</p>
+            </div>
+            <Icon.ChevronRight size={20} className="opacity-70" />
+          </button>
 
-              <form
-                onSubmit={onSubmit}
-                className="mt-6 flex items-center gap-2 bg-white border border-ink-200 rounded-2xl p-1.5 pl-4 shadow-soft hover:border-ink-400 focus-within:border-ink-900 transition max-w-md"
+          {/* Search field */}
+          <form
+            onSubmit={onSubmit}
+            className="mt-2.5 flex items-center gap-2 bg-white border border-ink-200 rounded-2xl px-4 py-2.5 focus-within:border-ink-900 transition"
+          >
+            <span className="text-ink-500"><Icon.Search size={18} /></span>
+            <input
+              ref={searchInputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Ketik nama daerah atau kota"
+              className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none py-1"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="text-ink-400 hover:text-ink-900 px-1"
+                aria-label="Hapus"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m21 21-4.3-4.3" />
-                </svg>
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Cari outlet, contoh: rancamaya"
-                  className="flex-1 bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none py-2"
-                />
-                <button
-                  type="submit"
-                  className="bg-ink-900 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-ink-800 active:scale-95 transition"
-                >
-                  Cari
-                </button>
-              </form>
-
-              {/* Quick chips */}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="text-xs text-ink-500 self-center mr-1">Populer:</span>
-                {POPULAR.slice(0, 4).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => {
-                      setQuery(p);
-                      search(p, 1, false);
-                    }}
-                    className="text-xs bg-white border border-ink-200 px-3 py-1.5 rounded-full hover:border-ink-900 hover:bg-ink-900 hover:text-white text-ink-700 transition"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Hero visual */}
-            <div className="order-first md:order-last hidden md:block">
-              <div className="relative aspect-[4/3] md:aspect-square rounded-3xl bg-gradient-to-br from-ink-900 via-ink-800 to-accent-700 overflow-hidden">
-                <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_30%_20%,white,transparent_50%)]" />
-                <div className="absolute inset-0 grid place-items-center">
-                  <div className="text-[10rem] md:text-[14rem] leading-none drop-shadow-2xl">☕</div>
-                </div>
-                {/* Floating cards */}
-                <div className="absolute top-4 right-4 bg-white/95 backdrop-blur rounded-2xl p-3 shadow-card hidden sm:block">
-                  <p className="text-[10px] text-ink-500 font-medium">Hemat hingga</p>
-                  <p className="text-base font-bold text-ink-900">Rp 35.000</p>
-                </div>
-                <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur rounded-2xl p-3 shadow-card flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 grid place-items-center text-white text-sm">
-                    ⚡
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-ink-500 font-medium leading-none">Cepat & Mudah</p>
-                    <p className="text-xs font-semibold text-ink-900 mt-0.5">via WhatsApp</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                <Icon.Close size={14} />
+              </button>
+            )}
+            <button
+              type="submit"
+              className="bg-ink-900 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg hover:bg-ink-800 active:scale-95 transition"
+            >
+              Cari
+            </button>
+          </form>
         </section>
 
-        {/* BENEFITS */}
+        {/* Quick chips */}
         {!searched && (
-          <section className="mt-10 md:mt-16 grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-            <Benefit
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 12 20 22 4 22 4 12" />
-                  <rect x="2" y="7" width="20" height="5" />
-                  <line x1="12" y1="22" x2="12" y2="7" />
-                  <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
-                  <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
-                </svg>
-              }
-              title="Diskon 50%"
-              desc="Maksimal potongan Rp 35.000 setiap pesanan."
-            />
-            <Benefit
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                </svg>
-              }
-              title="Cepat & Mudah"
-              desc="Pesan dalam beberapa klik, kirim langsung via WhatsApp."
-            />
-            <Benefit
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                  <circle cx="12" cy="10" r="3" />
-                </svg>
-              }
-              title="Banyak Outlet"
-              desc="Tersedia di berbagai kota di Indonesia."
-            />
-          </section>
-        )}
-
-        {/* BRANDS */}
-        {brands.length > 0 && (
-          <section className="mt-10">
-            <p className="text-xs font-semibold text-ink-500 mb-3 uppercase tracking-wider">
-              Brand tersedia
-            </p>
-            <div className="flex gap-3 md:gap-4 overflow-x-auto no-scrollbar pb-1">
-              {brands.map((b) => (
-                <div
-                  key={b.brand_code}
-                  className="shrink-0 w-20 md:w-24 flex flex-col items-center gap-2"
-                >
-                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-white border border-ink-200 flex items-center justify-center overflow-hidden hover:border-ink-400 transition">
-                    <img
-                      src={b.url}
-                      alt={b.brand_name}
-                      className="w-full h-full object-contain p-2"
-                    />
-                  </div>
-                  <span className="text-[10px] md:text-xs text-center text-ink-700 line-clamp-2 leading-tight">
-                    {b.brand_name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* RESULTS */}
-        <section className="mt-10">
-          <div className="flex items-baseline justify-between mb-4">
-            <h3 className="text-base md:text-lg font-semibold text-ink-900">
-              {searched ? `Hasil untuk "${query}"` : 'Mulai dengan mencari outlet'}
-            </h3>
-            {!loading && stores.length > 0 && (
-              <span className="text-xs text-ink-500">
-                {stores.length} dari {totalStores} outlet
+          <section className="mt-3">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+              <span className="shrink-0 text-[11px] font-medium text-ink-500 self-center mr-1">
+                Populer:
               </span>
-            )}
-          </div>
-
-          {loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-32 rounded-2xl shimmer" />
+              {['Rancamaya', 'Bogor', 'Jakarta', 'Bandung', 'Depok', 'Bekasi'].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => {
+                    setQuery(p);
+                    search(p, 1, false);
+                  }}
+                  className="shrink-0 text-xs bg-white border border-ink-200 px-3 py-1.5 rounded-full hover:border-ink-900 hover:bg-ink-900 hover:text-white text-ink-700 transition"
+                >
+                  {p}
+                </button>
               ))}
             </div>
-          )}
+          </section>
+        )}
 
-          {!loading && error && (
-            <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-
-          {!loading && !error && searched && stores.length === 0 && (
-            <div className="rounded-2xl bg-white border border-ink-200 p-10 text-center">
-              <div className="w-14 h-14 mx-auto rounded-full bg-ink-100 grid place-items-center mb-3">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m21 21-4.3-4.3" />
-                </svg>
+        {/* Promo banner */}
+        {!searched && (
+          <section className="mt-4">
+            <div className="rounded-2xl bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200 p-3.5 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white grid place-items-center shrink-0 shadow-soft text-accent-600">
+                <Icon.Gift size={20} />
               </div>
-              <p className="text-sm font-semibold text-ink-900">Outlet tidak ditemukan</p>
-              <p className="text-xs text-ink-500 mt-1">
-                Coba kata kunci lain seperti nama daerah atau kota.
-              </p>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-ink-900">Diskon 50% Otomatis</p>
+                <p className="text-[11px] text-ink-700 mt-0.5 leading-snug">
+                  Maks Rp 35.000 per pesanan. Pisah pesanan untuk dapat 2× potongan.
+                </p>
+              </div>
             </div>
-          )}
+          </section>
+        )}
 
-          {!loading && stores.length > 0 && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                {stores.map((s) => (
-                  <StoreCard key={s.id} store={s} onSelect={() => setStore(s)} />
+        {/* Search results */}
+        {searched && (
+          <section className="mt-5">
+            <div className="flex items-baseline justify-between mb-3">
+              <h3 className="text-sm font-semibold text-ink-900">
+                Hasil &ldquo;{query}&rdquo;
+              </h3>
+              {!loading && stores.length > 0 && (
+                <span className="text-xs text-ink-500">
+                  {stores.length} dari {totalStores}
+                </span>
+              )}
+            </div>
+
+            {loading && (
+              <div className="space-y-2.5">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-24 rounded-2xl shimmer" />
                 ))}
               </div>
+            )}
 
-              {page < totalPages && (
-                <div className="mt-5 flex justify-center">
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="bg-white border border-ink-200 hover:border-ink-900 text-ink-900 text-sm font-semibold px-6 py-3 rounded-2xl transition disabled:opacity-50 inline-flex items-center gap-2"
-                  >
-                    {loadingMore ? (
-                      <>
-                        <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                        </svg>
-                        Memuat...
-                      </>
-                    ) : (
-                      <>
-                        Muat {Math.min(20, totalStores - stores.length)} outlet lagi
-                        <span className="text-ink-500 text-xs">
-                          ({stores.length}/{totalStores})
-                        </span>
-                      </>
-                    )}
-                  </button>
+            {!loading && error && (
+              <div className="rounded-2xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {!loading && !error && stores.length === 0 && (
+              <div className="rounded-2xl bg-white border border-ink-200 p-8 text-center">
+                <div className="w-12 h-12 mx-auto rounded-full bg-ink-100 grid place-items-center mb-2 text-ink-500">
+                  <Icon.Search size={20} />
+                </div>
+                <p className="text-sm font-semibold text-ink-900">Outlet tidak ditemukan</p>
+                <p className="text-xs text-ink-500 mt-1">Coba kata kunci lain.</p>
+              </div>
+            )}
+
+            {!loading && stores.length > 0 && (
+              <>
+                <div className="space-y-2.5">
+                  {stores.map((s) => (
+                    <StoreCard key={s.id} store={s} onSelect={() => setStore(s)} />
+                  ))}
+                </div>
+
+                {page < totalPages && (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      onClick={loadMore}
+                      disabled={loadingMore}
+                      className="bg-white border border-ink-200 hover:border-ink-900 text-ink-900 text-xs font-semibold px-5 py-2.5 rounded-2xl transition disabled:opacity-50 inline-flex items-center gap-2"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Icon.Spinner size={12} />
+                          Memuat...
+                        </>
+                      ) : (
+                        <>Muat lebih banyak</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        {/* Preview Menu */}
+        {!searched && (
+          <section className="mt-6">
+            <div className="flex items-baseline justify-between mb-3">
+              <div>
+                <h3 className="text-base font-bold text-ink-900">Menu Kopi Kenangan</h3>
+                <p className="text-[11px] text-ink-500 mt-0.5">
+                  Preview menu — pilih outlet untuk pesan
+                </p>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            {previewMenu.length > 0 && (
+              <div className="sticky top-16 bg-ink-50/95 backdrop-blur z-20 -mx-4 px-4 py-2 border-b border-ink-200">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                  {previewMenu.map((g) => (
+                    <button
+                      key={g.group_code}
+                      onClick={() => setActiveGroup(g.group_code)}
+                      className={
+                        'shrink-0 text-xs font-medium px-3.5 py-2 rounded-full transition active:scale-95 ' +
+                        (activeGroup === g.group_code
+                          ? 'bg-ink-900 text-white'
+                          : 'bg-white text-ink-700 border border-ink-200 hover:border-ink-400')
+                      }
+                    >
+                      {g.group_name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3">
+              {previewLoading ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-64 rounded-2xl shimmer" />
+                  ))}
+                </div>
+              ) : products.length === 0 ? (
+                <div className="rounded-2xl bg-white border border-ink-200 p-6 text-center">
+                  <p className="text-sm font-semibold text-ink-900">Belum ada menu</p>
+                  <p className="text-xs text-ink-500 mt-1">
+                    Cari outlet untuk melihat menu lengkap.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {products.map((p) => (
+                    <PreviewProductCard
+                      key={p.id}
+                      product={p}
+                      onClick={handleProductClick}
+                    />
+                  ))}
                 </div>
               )}
-            </>
-          )}
-        </section>
+            </div>
+          </section>
+        )}
       </div>
-    </main>
-  );
-}
 
-function Benefit({ icon, title, desc }) {
-  return (
-    <div className="rounded-2xl bg-white border border-ink-200 p-5 hover:border-ink-400 transition group">
-      <div className="w-10 h-10 rounded-xl bg-ink-900 text-white grid place-items-center group-hover:bg-accent-500 transition">
-        {icon}
-      </div>
-      <p className="text-sm font-semibold text-ink-900 mt-3">{title}</p>
-      <p className="text-xs text-ink-500 mt-1 leading-relaxed">{desc}</p>
-    </div>
+      <HowToOrderModal
+        open={howToOpen}
+        onClose={() => setHowToOpen(false)}
+        onPrimary={handleHowToPrimary}
+      />
+    </main>
   );
 }
 
@@ -313,10 +399,10 @@ function StoreCard({ store, onSelect }) {
     <Link
       href={`/menu/${store.code}`}
       onClick={onSelect}
-      className="group block rounded-2xl bg-white border border-ink-200 overflow-hidden hover:border-ink-900 hover:shadow-card transition fade-up"
+      className="group block rounded-2xl bg-white border border-ink-200 overflow-hidden hover:border-ink-900 transition fade-up"
     >
       <div className="flex gap-3 p-3">
-        <div className="w-24 h-24 rounded-xl bg-ink-100 overflow-hidden shrink-0">
+        <div className="w-20 h-20 rounded-xl bg-ink-100 overflow-hidden shrink-0">
           {store.image_url ? (
             <img
               src={store.image_url}
@@ -324,39 +410,82 @@ function StoreCard({ store, onSelect }) {
               className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-3xl">☕</div>
+            <div className="w-full h-full flex items-center justify-center text-ink-400">
+              <Icon.Store size={28} />
+            </div>
           )}
         </div>
         <div className="flex-1 min-w-0 flex flex-col">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-sm md:text-base text-ink-900 truncate">
-              {store.name}
-            </h3>
+            <h3 className="font-semibold text-sm text-ink-900 truncate">{store.name}</h3>
             {store.is_open ? (
-              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium border border-emerald-200">
+              <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full font-medium border border-emerald-200">
                 Buka
               </span>
             ) : (
-              <span className="text-[10px] bg-ink-100 text-ink-600 px-2 py-0.5 rounded-full font-medium">
+              <span className="text-[9px] bg-ink-100 text-ink-600 px-1.5 py-0.5 rounded-full font-medium">
                 Tutup
               </span>
             )}
           </div>
-          <p className="text-[11px] md:text-xs text-ink-500 mt-1 line-clamp-2">{store.address}</p>
-          <div className="flex items-center justify-between mt-auto pt-2">
-            <span className="text-[11px] text-ink-500 inline-flex items-center gap-1">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
+          <p className="text-[11px] text-ink-500 mt-0.5 line-clamp-2">{store.address}</p>
+          <div className="flex items-center justify-between mt-auto pt-1.5">
+            <span className="text-[10px] text-ink-500 inline-flex items-center gap-1">
+              <Icon.Clock size={10} />
               {store.open?.slice(0, 5)} - {store.close?.slice(0, 5)}
             </span>
-            <span className="text-xs font-semibold text-ink-900 inline-flex items-center gap-1 group-hover:gap-2 transition-all">
-              Pesan <span>→</span>
+            <span className="text-xs font-semibold text-ink-900 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
+              Pesan <Icon.ArrowRight size={12} />
             </span>
           </div>
         </div>
       </div>
     </Link>
+  );
+}
+
+function PreviewProductCard({ product, onClick }) {
+  const origPrice = Number(product.price) || 0;
+  const finalPrice = applyDiscount(origPrice);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group text-left rounded-2xl bg-white border border-ink-200 overflow-hidden flex flex-col fade-up hover:border-ink-900 hover:shadow-card transition active:scale-[.98]"
+    >
+      <div className="aspect-square bg-ink-100 relative overflow-hidden">
+        {product.image ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-ink-400">
+            <Icon.Coffee size={36} />
+          </div>
+        )}
+        {origPrice > 0 && (
+          <span className="absolute top-2 left-2 bg-ink-900 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
+            HEMAT 50%
+          </span>
+        )}
+      </div>
+      <div className="p-2.5 md:p-3 flex-1 flex flex-col">
+        <h3 className="text-xs md:text-sm font-semibold leading-tight line-clamp-2 min-h-[2.4em] text-ink-900">
+          {product.name}
+        </h3>
+        <div className="mt-auto pt-2">
+          <div className="flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-sm font-bold text-ink-900">{rupiah(finalPrice)}</span>
+            {origPrice > finalPrice && (
+              <span className="text-[10px] line-through text-ink-400">{rupiah(origPrice)}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </button>
   );
 }

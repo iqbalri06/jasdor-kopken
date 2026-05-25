@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { rupiah, useCart, applyDiscount } from './CartContext';
 import { fetchOptions } from './productOptions';
+import { Icon } from './Icons';
 
-export default function OptionsModal({ product, storeCode, store, prefetchedData, onClose, onAdded }) {
+export default function OptionsModal({ product, storeCode, store, prefetchedData, checkDiscountCap, onClose, onAdded }) {
   const [data, setData] = useState(prefetchedData || null);
   const [loading, setLoading] = useState(!prefetchedData);
   const [error, setError] = useState('');
@@ -142,53 +143,68 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
       alert('Lengkapi pilihan terlebih dahulu');
       return;
     }
-    const selectedAddons = [];
-    for (const dim of addons) {
-      for (const v of dim.dimension_value_wordings || []) {
-        if (addonSel[v.addon_sku]) {
-          selectedAddons.push({
-            sku: v.addon_sku,
-            name: v.value_text,
-            price: Number(v.addon_price) || 0,
-          });
+
+    const doAdd = () => {
+      // Selected addon list (untuk identitas unik & info)
+      const selectedAddons = [];
+      for (const dim of addons) {
+        for (const v of dim.dimension_value_wordings || []) {
+          if (addonSel[v.addon_sku]) {
+            selectedAddons.push({
+              sku: v.addon_sku,
+              name: v.value_text,
+              price: Number(v.addon_price) || 0,
+            });
+          }
         }
       }
-    }
 
-    const selectedNotes = [];
-    for (const n of notes) {
-      for (const g of n.groups || []) {
-        if (isInvisible(g.invisible_when, dimSel)) continue;
-        const v = noteSel[g.option_type];
-        if (v == null) continue;
-        const idx = (g.values || []).indexOf(v);
-        if (idx >= 0) {
-          selectedNotes.push({ option: g.option_name, value: g.value_texts[idx] });
+      // Notes selected (visible)
+      const selectedNotes = [];
+      for (const n of notes) {
+        for (const g of n.groups || []) {
+          if (isInvisible(g.invisible_when, dimSel)) continue;
+          const v = noteSel[g.option_type];
+          if (v == null) continue;
+          const idx = (g.values || []).indexOf(v);
+          if (idx >= 0) {
+            selectedNotes.push({
+              option: g.option_name,
+              value: g.value_texts[idx],
+            });
+          }
         }
       }
-    }
 
-    const addonIds = selectedAddons.map((a) => a.sku).sort().join('-');
-    const noteIds = selectedNotes.map((n) => n.value).join('-');
-    const uniqueId = `${matched.product_code}_${addonIds}_${noteIds}`;
+      const addonIds = selectedAddons.map((a) => a.sku).sort().join('-');
+      const noteIds = selectedNotes.map((n) => n.value).join('-');
+      const uniqueId = `${matched.product_code}_${addonIds}_${noteIds}`;
 
-    const productForCart = {
-      id: uniqueId,
-      name: product.name,
-      product_code: matched.product_code,
-      price: unitPrice,    // harga asli (cart yg hitung diskon dengan cap)
-      image: product.image,
-      variant: summary,
-      addons: selectedAddons,
-      notes: selectedNotes,
+      const productForCart = {
+        id: uniqueId,
+        name: product.name,
+        product_code: matched.product_code,
+        price: unitPrice,
+        image: product.image,
+        variant: summary,
+        addons: selectedAddons,
+        notes: selectedNotes,
+      };
+
+      for (let i = 0; i < qty; i++) {
+        addItem(productForCart, store);
+      }
+
+      onAdded?.();
+      onClose?.();
     };
 
-    for (let i = 0; i < qty; i++) {
-      addItem(productForCart, store);
+    // Jika parent menyediakan checkDiscountCap, biarkan parent yang tampilkan modal.
+    if (checkDiscountCap) {
+      checkDiscountCap(unitPrice, qty, doAdd);
+    } else {
+      doAdd();
     }
-
-    onAdded?.();
-    onClose?.();
   }
 
   return (
@@ -209,19 +225,18 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-5xl">☕</div>
+              <div className="w-full h-full flex items-center justify-center text-ink-400">
+                <Icon.Coffee size={56} />
+              </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
           </div>
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white shadow-soft hover:bg-ink-100 flex items-center justify-center transition"
+            className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white shadow-soft hover:bg-ink-100 flex items-center justify-center transition text-ink-900"
             aria-label="Tutup"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#18181B" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
+            <Icon.Close size={18} strokeWidth={2.4} />
           </button>
           <div className="absolute bottom-3 left-4 right-4 text-white">
             <h2 className="text-lg md:text-xl font-bold leading-tight">{product?.name}</h2>

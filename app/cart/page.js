@@ -1,8 +1,11 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
+import DiscountCapModal from '@/components/DiscountCapModal';
+import { Icon } from '@/components/Icons';
 import { useCart, rupiah } from '@/components/CartContext';
 
 export default function CartPage() {
@@ -12,13 +15,48 @@ export default function CartPage() {
     updateQty,
     removeItem,
     subtotal,
+    origSubtotal,
     discount,
     discountCapped,
     serviceFee,
     total,
+    DISCOUNT_RATE,
     DISCOUNT_MAX,
   } = useCart();
   const router = useRouter();
+  const [capModal, setCapModal] = useState({ open: false, mode: 'over', lostSaving: 0 });
+  const pendingRef = useRef(null);
+
+  function tryIncrement(it) {
+    const itemPrice = Number(it.orig_price || it.price);
+    const currentDiscount = Math.floor(origSubtotal * DISCOUNT_RATE);
+    const action = () => updateQty(it.id, it.qty + 1);
+
+    if (currentDiscount >= DISCOUNT_MAX) {
+      pendingRef.current = action;
+      setCapModal({ open: true, mode: 'capped', lostSaving: 0 });
+      return;
+    }
+    const newDiscount = Math.floor((origSubtotal + itemPrice) * DISCOUNT_RATE);
+    if (newDiscount > DISCOUNT_MAX) {
+      pendingRef.current = action;
+      setCapModal({ open: true, mode: 'over', lostSaving: newDiscount - DISCOUNT_MAX });
+      return;
+    }
+    action();
+  }
+
+  function handleCapConfirm() {
+    const fn = pendingRef.current;
+    pendingRef.current = null;
+    setCapModal((c) => ({ ...c, open: false }));
+    if (fn) fn();
+  }
+
+  function handleCapCancel() {
+    pendingRef.current = null;
+    setCapModal((c) => ({ ...c, open: false }));
+  }
 
   const empty = items.length === 0;
 
@@ -34,8 +72,8 @@ export default function CartPage() {
       <div className="max-w-5xl mx-auto px-4 md:px-6">
         {empty ? (
           <div className="mt-12 text-center max-w-md mx-auto">
-            <div className="w-20 h-20 mx-auto rounded-full bg-ink-100 grid place-items-center text-3xl mb-4">
-              🛒
+            <div className="w-20 h-20 mx-auto rounded-full bg-ink-100 grid place-items-center mb-4 text-ink-400">
+              <Icon.Bag size={36} />
             </div>
             <p className="font-semibold text-lg text-ink-900">Keranjang masih kosong</p>
             <p className="text-sm text-ink-500 mt-1">
@@ -59,7 +97,9 @@ export default function CartPage() {
                       {store.image_url ? (
                         <img src={store.image_url} alt={store.name} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xl">☕</div>
+                        <div className="w-full h-full flex items-center justify-center text-ink-400">
+                          <Icon.Store size={20} />
+                        </div>
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -86,7 +126,9 @@ export default function CartPage() {
                       {it.image ? (
                         <img src={it.image} alt={it.name} className="w-full h-full object-cover" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xl">☕</div>
+                        <div className="w-full h-full flex items-center justify-center text-ink-400">
+                          <Icon.Coffee size={24} />
+                        </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -107,11 +149,7 @@ export default function CartPage() {
                           aria-label="Hapus"
                           title="Hapus"
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
+                          <Icon.Trash size={16} />
                         </button>
                       </div>
                       <div className="flex items-center justify-between mt-3">
@@ -128,7 +166,7 @@ export default function CartPage() {
                           </button>
                           <span className="text-sm font-semibold w-5 text-center text-ink-900">{it.qty}</span>
                           <button
-                            onClick={() => updateQty(it.id, it.qty + 1)}
+                            onClick={() => tryIncrement(it)}
                             className="w-7 h-7 rounded-full bg-ink-900 hover:bg-ink-800 text-white flex items-center justify-center font-semibold active:scale-90 transition"
                             aria-label="Tambah"
                           >
@@ -163,13 +201,7 @@ export default function CartPage() {
                 {/* Promo info */}
                 <div className="rounded-2xl border border-accent-200 bg-accent-50 p-3 md:p-4 flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full bg-ink-900 text-accent-200 grid place-items-center shrink-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 12 20 22 4 22 4 12" />
-                      <rect x="2" y="7" width="20" height="5" />
-                      <line x1="12" y1="22" x2="12" y2="7" />
-                      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
-                      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
-                    </svg>
+                    <Icon.Gift size={16} />
                   </div>
                   <div className="flex-1 text-xs">
                     <p className="font-semibold text-accent-700">Diskon 50% diterapkan</p>
@@ -227,6 +259,15 @@ export default function CartPage() {
           </div>
         </div>
       )}
+
+      <DiscountCapModal
+        open={capModal.open}
+        mode={capModal.mode}
+        lostSaving={capModal.lostSaving}
+        max={DISCOUNT_MAX}
+        onCancel={handleCapCancel}
+        onConfirm={handleCapConfirm}
+      />
     </main>
   );
 }

@@ -11,10 +11,13 @@ export const DISCOUNT_RATE = 0.5;
 export const DISCOUNT_MAX = 35000;
 export const SERVICE_FEE = 7000;
 
-// Harga setelah diskon 50% (dibulatkan ke rupiah penuh)
+// Harga setelah diskon 50% dengan cap Rp 35.000.
+// - Harga ≤ 70.000  → potong 50%
+// - Harga > 70.000  → potong Rp 35.000 (max)
 export function applyDiscount(price) {
   const n = Number(price) || 0;
-  return Math.round(n * (1 - DISCOUNT_RATE));
+  const discount = Math.min(Math.floor(n * DISCOUNT_RATE), DISCOUNT_MAX);
+  return n - discount;
 }
 
 export function CartProvider({ children }) {

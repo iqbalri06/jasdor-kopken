@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Icon } from './Icons';
 
 const STORAGE_KEY = 'jasdor-welcome-seen-v1';
 
@@ -50,8 +51,8 @@ export default function WelcomeModal() {
       <div className="relative w-full md:max-w-lg bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden fade-up">
         {/* Header sederhana */}
         <div className="px-6 pt-7 pb-5 text-center border-b border-ink-100">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-accent-50 grid place-items-center text-4xl mb-3">
-            🎁
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-accent-50 grid place-items-center mb-3 text-accent-600">
+            <Icon.Gift size={32} />
           </div>
           <h2 className="text-xl md:text-2xl font-bold text-ink-900">
             Selamat datang!
@@ -81,7 +82,7 @@ export default function WelcomeModal() {
         <div className="px-6 pt-5">
           <div className="rounded-2xl border-2 border-dashed border-accent-300 bg-accent-50 p-4">
             <p className="text-sm font-bold text-ink-900 flex items-center gap-2">
-              <span className="text-lg">💡</span> Tips Hemat Maksimal
+              <span className="text-accent-600"><Icon.Info size={18} /></span> Tips Hemat Maksimal
             </p>
             <p className="text-sm text-ink-700 mt-1.5 leading-relaxed">
               Kalau total belanja kamu <b>lebih dari Rp 70.000</b>, pisah jadi{' '}
