@@ -30,27 +30,25 @@ export default function OrderDetailPage({ params }) {
   }, [params.token]);
 
   async function loadOrder() {
-    // Coba fetch dari database dulu (order ID pendek)
     try {
       const res = await fetch(`/api/orders/${encodeURIComponent(params.token)}`);
       const json = await res.json();
       if (json.error_code === 0 && json.data) {
-        // Data dari Supabase: { id, data: {...}, status, created_at }
         const d = json.data.data || json.data;
         setOrder({
           ...d,
           orderId: d.orderId || json.data.id,
           createdAt: d.createdAt || json.data.created_at,
           proof_url: d.proof_url || '',
+          status: json.data.status || 'pending',
         });
         return;
       }
     } catch (_) {}
 
-    // Fallback: decode dari base64 token (link lama)
     const decoded = decodeOrder(params.token);
     if (decoded) {
-      setOrder(decoded);
+      setOrder({ ...decoded, status: 'pending' });
       return;
     }
 
@@ -120,6 +118,7 @@ export default function OrderDetailPage({ params }) {
   const customerWa = customer?.phone ? customer.phone.replace(/[^0-9]/g, '').replace(/^0/, '62') : '';
   const dateStr = formatDateTime(createdAt);
   const totalQty = items.reduce((a, b) => a + (b.qty || 0), 0);
+  const orderStatus = order.status || order._status || 'pending';
 
   return (
     <main className="pb-24 bg-ink-50/50">
@@ -128,16 +127,16 @@ export default function OrderDetailPage({ params }) {
       <div className="max-w-3xl mx-auto px-4 md:px-6">
         {/* Hero status */}
         <section className="mt-4 md:mt-6">
-          <div className="relative rounded-3xl bg-gradient-to-br from-ink-900 via-ink-800 to-accent-700 text-white p-6 md:p-8 overflow-hidden">
+          <div className={'relative rounded-3xl text-white p-6 md:p-8 overflow-hidden ' + getStatusBg(orderStatus)}>
             <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute -bottom-16 -left-10 w-56 h-56 rounded-full bg-accent-500/20 blur-3xl" />
+            <div className="absolute -bottom-16 -left-10 w-56 h-56 rounded-full bg-white/10 blur-3xl" />
 
             <div className="relative">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold bg-white/15 backdrop-blur px-3 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Pesanan
+                    <span className={'w-1.5 h-1.5 rounded-full ' + getStatusDot(orderStatus)} />
+                    {getStatusLabel(orderStatus)}
                   </span>
                   <p className="text-[11px] uppercase tracking-[0.18em] opacity-70 font-semibold mt-3">
                     Order ID
@@ -150,7 +149,7 @@ export default function OrderDetailPage({ params }) {
                   )}
                 </div>
                 <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-white/15 backdrop-blur grid place-items-center shrink-0">
-                  <Icon.Receipt size={28} />
+                  {getStatusIcon(orderStatus)}
                 </div>
               </div>
 
@@ -270,29 +269,77 @@ export default function OrderDetailPage({ params }) {
               <span className="w-8 h-8 rounded-lg bg-ink-100 grid place-items-center text-ink-700"><Icon.Receipt size={16} /></span>
               <h3 className="text-sm font-semibold text-ink-900">Ringkasan Tagihan</h3>
             </div>
-            <div className="px-4 py-4 space-y-2 text-sm">
-              {origSubtotal > subtotal && <Row label="Harga normal" value={rupiah(origSubtotal)} valueClass="text-ink-400 line-through" />}
-              {discount > 0 && <Row label={<span className="inline-flex items-center gap-1.5">Hemat 50%{discountCapped && <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-semibold">MAX</span>}</span>} value={`- ${rupiah(discount)}`} valueClass="text-emerald-600 font-semibold" />}
-              <Row label="Subtotal setelah diskon" value={rupiah(subtotal)} />
-              <Row label="Biaya jasa order" value={rupiah(serviceFee)} />
-              {order.uniqueCode != null && (
-                <Row
-                  label={
-                    <span className="inline-flex items-center gap-1.5">
-                      Kode unik
-                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">
-                        VERIFIKASI
+
+            <div className="px-4 py-4">
+              {/* Group: Harga & diskon */}
+              <div className="space-y-1.5">
+                {origSubtotal > subtotal && (
+                  <Row
+                    label="Harga normal"
+                    value={rupiah(origSubtotal)}
+                    valueClass="text-ink-400 line-through text-xs"
+                  />
+                )}
+                {discount > 0 && (
+                  <Row
+                    label={
+                      <span className="inline-flex items-center gap-1.5">
+                        Hemat 50%
+                        {discountCapped && (
+                          <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold">
+                            MAX
+                          </span>
+                        )}
                       </span>
-                    </span>
-                  }
-                  value={`+ ${order.uniqueCode}`}
-                  valueClass="text-amber-600 font-semibold"
+                    }
+                    value={`- ${rupiah(discount)}`}
+                    valueClass="text-emerald-600 font-semibold text-xs"
+                  />
+                )}
+              </div>
+
+              {/* Group: Subtotal & fee */}
+              <div className="space-y-1.5 mt-3 pt-3 border-t border-dashed border-ink-200">
+                <Row
+                  label="Subtotal"
+                  value={rupiah(subtotal)}
+                  labelClass="text-ink-700"
+                  valueClass="text-ink-900 font-medium text-sm"
                 />
-              )}
+                <Row
+                  label="Biaya jasa order"
+                  value={rupiah(serviceFee)}
+                  labelClass="text-ink-700"
+                  valueClass="text-ink-900 font-medium text-sm"
+                />
+                {order.uniqueCode != null && (
+                  <Row
+                    label={
+                      <span className="inline-flex items-center gap-1.5">
+                        Kode unik
+                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">
+                          VERIFIKASI
+                        </span>
+                      </span>
+                    }
+                    value={`+ ${order.uniqueCode}`}
+                    labelClass="text-ink-700"
+                    valueClass="text-amber-600 font-semibold text-sm"
+                  />
+                )}
+              </div>
             </div>
-            <div className="px-4 py-4 bg-ink-900 text-white flex justify-between items-baseline">
-              <span className="font-semibold">Total Bayar</span>
-              <span className="font-extrabold text-2xl">{rupiah(order.totalToPay || total)}</span>
+
+            {/* Total bayar */}
+            <div className="px-4 py-4 bg-ink-900 text-white flex justify-between items-center">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
+                  Total Bayar
+                </p>
+              </div>
+              <p className="font-extrabold text-2xl tracking-tight">
+                {rupiah(order.totalToPay || total)}
+              </p>
             </div>
           </div>
         </section>
@@ -344,10 +391,10 @@ function Info({ label, value }) {
   );
 }
 
-function Row({ label, value, valueClass = '' }) {
+function Row({ label, value, valueClass = '', labelClass = '' }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-ink-500">{label}</span>
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span className={labelClass || 'text-ink-500'}>{label}</span>
       <span className={valueClass || 'text-ink-900 font-medium'}>{value}</span>
     </div>
   );
@@ -449,4 +496,49 @@ function AdminActions({ order, orderId, customerWa, customerName }) {
       </div>
     </section>
   );
+}
+
+function getStatusLabel(status) {
+  const map = {
+    pending: 'Menunggu Pembayaran',
+    processing: 'Sedang Diproses',
+    done: 'Pesanan Selesai',
+    cancelled: 'Pesanan Dibatalkan',
+  };
+  return map[status] || 'Pesanan';
+}
+
+function getStatusBg(status) {
+  const map = {
+    pending: 'bg-gradient-to-br from-amber-600 via-amber-700 to-amber-800',
+    processing: 'bg-gradient-to-br from-blue-600 via-blue-700 to-blue-900',
+    done: 'bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-900',
+    cancelled: 'bg-gradient-to-br from-red-600 via-red-700 to-red-900',
+  };
+  return map[status] || 'bg-gradient-to-br from-ink-900 via-ink-800 to-accent-700';
+}
+
+function getStatusDot(status) {
+  const map = {
+    pending: 'bg-amber-300 animate-pulse',
+    processing: 'bg-blue-300 animate-pulse',
+    done: 'bg-emerald-300',
+    cancelled: 'bg-red-300',
+  };
+  return map[status] || 'bg-emerald-400 animate-pulse';
+}
+
+function getStatusIcon(status) {
+  switch (status) {
+    case 'pending':
+      return <Icon.Clock size={28} />;
+    case 'processing':
+      return <Icon.Bolt size={28} />;
+    case 'done':
+      return <Icon.Check size={28} strokeWidth={3} />;
+    case 'cancelled':
+      return <Icon.Close size={28} strokeWidth={3} />;
+    default:
+      return <Icon.Receipt size={28} />;
+  }
 }

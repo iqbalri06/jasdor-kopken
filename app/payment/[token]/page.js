@@ -76,7 +76,8 @@ export default function PaymentPage({ params }) {
         setQrDataUrl(dataUrl);
       }
     } catch (_) {}
-    setLoading(false);
+    // Tunggu sebentar agar transisi terasa smooth (min 600ms)
+    setTimeout(() => setLoading(false), 400);
   }
 
   function handleFileSelect(e) {
@@ -158,12 +159,31 @@ export default function PaymentPage({ params }) {
 
   if (loading) {
     return (
-      <main className="pb-24">
+      <main className="pb-24 bg-gradient-to-b from-ink-50 to-white min-h-screen">
         <Header title="Pembayaran" back="/" showCart={false} />
-        <div className="max-w-md mx-auto px-4 mt-6 space-y-3">
-          <div className="h-32 rounded-3xl shimmer" />
-          <div className="h-72 rounded-2xl shimmer" />
-          <div className="h-40 rounded-2xl shimmer" />
+        <div className="max-w-md mx-auto px-4 mt-12 text-center">
+          {/* Animated loader */}
+          <div className="relative w-24 h-24 mx-auto mb-6">
+            <div
+              className="absolute inset-0 rounded-full bg-ink-900/10 animate-ping"
+              style={{ animationDuration: '2s' }}
+            />
+            <div className="absolute inset-0 w-24 h-24 rounded-full bg-gradient-to-br from-ink-900 to-accent-700 grid place-items-center text-white shadow-lg">
+              <Icon.Spinner size={36} />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-ink-900">Menyiapkan QRIS</h2>
+          <p className="text-sm text-ink-600 mt-2 max-w-xs mx-auto leading-relaxed">
+            Sebentar ya, kami sedang generate QR pembayaran dengan nominal yang sesuai...
+          </p>
+
+          {/* Skeleton steps */}
+          <div className="mt-8 space-y-3 text-left">
+            <LoadStep done text="Membuat pesanan" />
+            <LoadStep done text="Menyimpan ke database" />
+            <LoadStep loading text="Generate QRIS dinamis" />
+            <LoadStep idle text="Menyiapkan halaman pembayaran" />
+          </div>
         </div>
       </main>
     );
@@ -188,84 +208,91 @@ export default function PaymentPage({ params }) {
           </div>
         </div>
 
-        {/* Total bayar - hero */}
-        <div className="rounded-3xl bg-gradient-to-br from-ink-900 via-ink-800 to-accent-700 text-white overflow-hidden relative">
-          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
-          <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-accent-500/20 blur-2xl" />
-
-          <div className="relative p-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
-                Total Pembayaran
-              </span>
-              {order?.orderId && (
-                <span className="text-[10px] bg-white/15 backdrop-blur px-2.5 py-1 rounded-full font-semibold">
-                  {order.orderId}
-                </span>
-              )}
+        {/* QR Code Card */}
+        {qrDataUrl ? (
+          <div className="rounded-3xl bg-white border border-ink-200 overflow-hidden shadow-card">
+            {/* Header dengan logo QRIS */}
+            <div className="bg-gradient-to-r from-ink-900 to-ink-800 px-5 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-white text-red-600 font-extrabold text-[11px] px-2 py-1 rounded">
+                  QRIS
+                </div>
+                <span className="text-white text-xs font-semibold">Bayar dengan scan</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-white/80">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Aktif</span>
+              </div>
             </div>
-            <p className="text-4xl md:text-5xl font-extrabold tracking-tight">
-              {rupiah(order?.totalToPay || order?.total)}
-            </p>
 
-            {order?.uniqueCode != null && (
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <div className="bg-white/10 backdrop-blur rounded-xl p-3">
-                  <p className="text-[10px] uppercase tracking-wider opacity-70 font-semibold">
-                    Harga normal
-                  </p>
-                  <p className="text-base font-bold mt-1 line-through opacity-80">
-                    {rupiah(order.total)}
-                  </p>
+            {/* Merchant info */}
+            {(merchantName || order?.totalToPay) && (
+              <div className="px-5 py-3 bg-ink-50 border-b border-ink-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">
+                      Nama Merchant
+                    </p>
+                    <p className="text-sm font-bold text-ink-900 mt-0.5">
+                      {merchantName || '-'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">
+                      Total Bayar
+                    </p>
+                    <p className="text-base font-extrabold text-ink-900 mt-0.5 tracking-tight">
+                      {rupiah(order?.totalToPay || order?.total)}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-amber-400/20 backdrop-blur rounded-xl p-3 border border-amber-300/30">
-                  <p className="text-[10px] uppercase tracking-wider text-amber-200 font-semibold">
-                    Kode unik
-                  </p>
-                  <p className="text-base font-bold mt-1 text-amber-100">
-                    + {order.uniqueCode}
-                  </p>
-                </div>
+                {order?.uniqueCode != null && (
+                  <div className="mt-2 pt-2 border-t border-ink-200/60 flex items-center gap-1.5 text-[10px] text-ink-500">
+                    <Icon.Info size={11} />
+                    <span>
+                      Sudah termasuk{' '}
+                      <span className="text-amber-700 font-semibold">
+                        +{order.uniqueCode}
+                      </span>{' '}
+                      kode unik untuk verifikasi
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
-            <div className="mt-4 flex items-start gap-2 text-[11px] opacity-90">
-              <Icon.Info size={14} className="shrink-0 mt-0.5" />
-              <p>
-                {order?.uniqueCode
-                  ? 'Bayar tepat sesuai nominal di atas. Kode unik untuk verifikasi pembayaran.'
-                  : 'Nominal sudah otomatis terisi di QRIS.'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* QR Code Card */}
-        {qrDataUrl ? (
-          <div className="rounded-3xl bg-white border border-ink-200 overflow-hidden">
-            <div className="bg-ink-900 text-white px-5 py-3 flex items-center gap-2">
-              <Icon.Tag size={16} />
-              <span className="text-sm font-semibold">Scan QRIS untuk Bayar</span>
-            </div>
-            <div className="p-6 grid place-items-center">
+            {/* QR area */}
+            <div className="px-5 py-6 grid place-items-center bg-gradient-to-b from-white to-ink-50/30">
+              {/* Frame dengan corner brackets */}
               <div className="relative">
-                {/* Decorative corners */}
-                <div className="absolute -top-2 -left-2 w-5 h-5 border-t-2 border-l-2 border-ink-900 rounded-tl-lg" />
-                <div className="absolute -top-2 -right-2 w-5 h-5 border-t-2 border-r-2 border-ink-900 rounded-tr-lg" />
-                <div className="absolute -bottom-2 -left-2 w-5 h-5 border-b-2 border-l-2 border-ink-900 rounded-bl-lg" />
-                <div className="absolute -bottom-2 -right-2 w-5 h-5 border-b-2 border-r-2 border-ink-900 rounded-br-lg" />
+                {/* Outer decorative ring */}
+                <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-accent-100 to-ink-100/50 opacity-50 blur-md" />
 
-                <div className="p-3 bg-white border border-ink-100 rounded-2xl">
-                  <img src={qrDataUrl} alt="QRIS" className="w-56 h-56 md:w-64 md:h-64 block" />
+                {/* Corner brackets */}
+                <div className="absolute -top-1 -left-1 w-6 h-6 border-t-[3px] border-l-[3px] border-ink-900 rounded-tl-xl" />
+                <div className="absolute -top-1 -right-1 w-6 h-6 border-t-[3px] border-r-[3px] border-ink-900 rounded-tr-xl" />
+                <div className="absolute -bottom-1 -left-1 w-6 h-6 border-b-[3px] border-l-[3px] border-ink-900 rounded-bl-xl" />
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 border-b-[3px] border-r-[3px] border-ink-900 rounded-br-xl" />
+
+                {/* QR container */}
+                <div className="relative p-4 bg-white border-2 border-ink-100 rounded-2xl shadow-soft">
+                  <img
+                    src={qrDataUrl}
+                    alt="QRIS"
+                    className="w-56 h-56 md:w-64 md:h-64 block"
+                  />
                 </div>
               </div>
 
-              {merchantName && (
-                <div className="mt-5 inline-flex items-center gap-2 bg-ink-50 px-3 py-1.5 rounded-full">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <p className="text-xs font-semibold text-ink-900">{merchantName}</p>
+              {/* QRIS info badge */}
+              <div className="mt-5 flex items-center gap-2">
+                <div className="bg-red-600 text-white font-bold text-[10px] px-2 py-1 rounded">
+                  QRIS
                 </div>
-              )}
+                <span className="text-[11px] text-ink-500 font-medium">
+                  Quick Response Code Indonesian Standard
+                </span>
+              </div>
             </div>
 
             {/* Cara bayar */}
@@ -503,6 +530,39 @@ function Step({ num, text }) {
         {num}
       </span>
       <p className="text-xs text-ink-700 flex-1">{text}</p>
+    </div>
+  );
+}
+
+function LoadStep({ done, loading, idle, text }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-white border border-ink-200 px-4 py-3">
+      <div
+        className={
+          'w-7 h-7 rounded-full grid place-items-center shrink-0 ' +
+          (done
+            ? 'bg-emerald-500 text-white'
+            : loading
+            ? 'bg-blue-500 text-white'
+            : 'bg-ink-100 text-ink-400')
+        }
+      >
+        {done ? (
+          <Icon.Check size={14} strokeWidth={3} />
+        ) : loading ? (
+          <Icon.Spinner size={14} />
+        ) : (
+          <Icon.Clock size={14} />
+        )}
+      </div>
+      <p
+        className={
+          'text-sm font-medium ' +
+          (idle ? 'text-ink-400' : 'text-ink-900')
+        }
+      >
+        {text}
+      </p>
     </div>
   );
 }

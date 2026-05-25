@@ -70,7 +70,10 @@ function BottomNav({ pathname }) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ink-200 safe-area-bottom">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ink-200"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
       <div className="max-w-lg mx-auto px-2 py-1.5">
         <div className="flex items-center justify-around">
           {items.map((item) => {

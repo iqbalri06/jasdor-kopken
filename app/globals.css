@@ -8,9 +8,18 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  /* iOS safe area variables tersedia di body */
 }
 
 * { box-sizing: border-box; }
+
+/* Safe area helpers */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
 
 .scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #D4D4D8; border-radius: 6px; }

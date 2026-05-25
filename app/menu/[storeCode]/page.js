@@ -437,11 +437,14 @@ export default function MenuPage({ params }) {
 
       {/* Floating cart bar */}
       {totalQty > 0 && (
-        <div className="fixed bottom-4 left-0 right-0 z-40">
-          <div className="max-w-md md:max-w-lg mx-auto px-4">
+        <div
+          className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-ink-200"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="max-w-md md:max-w-lg mx-auto px-4 pt-3">
             <Link
               href="/cart"
-              className="flex items-center justify-between bg-ink-900 text-white rounded-2xl px-4 py-3.5 shadow-card hover:bg-ink-800 active:scale-[.98] transition"
+              className="flex items-center justify-between bg-ink-900 text-white rounded-2xl px-4 py-3.5 shadow-lg shadow-ink-900/20 hover:bg-ink-800 active:scale-[.98] transition"
             >
               <div className="flex items-center gap-3">
                 <span className="bg-white/15 px-2.5 py-1 rounded-lg text-xs font-semibold">

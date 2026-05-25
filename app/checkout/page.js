@@ -153,10 +153,9 @@ export default function CheckoutPage() {
 
     // Kosongkan keranjang
     clear();
-    setSubmitting(false);
 
-    // Arahkan ke halaman pembayaran (bukan langsung WA)
-    router.push(`/payment/${token}`);
+    // Arahkan ke halaman pembayaran (loading state akan tampil di payment page)
+    router.push(`/payment/${orderId}`);
   }
 
   if (hydrated && items.length === 0) {
@@ -225,29 +224,29 @@ export default function CheckoutPage() {
               </Field>
             </section>
 
-            <section className="rounded-2xl bg-white border border-ink-200 p-4 md:p-6 space-y-4">
+            <section className="rounded-2xl bg-white border border-ink-200 p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-sm md:text-base font-semibold text-ink-900">Waktu Ambil</h2>
-                  <p className="text-xs text-ink-500 mt-0.5">
-                    Pilih kapan kamu mau mengambil pesanan.
+                  <h2 className="text-sm font-semibold text-ink-900">Waktu Ambil</h2>
+                  <p className="text-[11px] text-ink-500 mt-0.5">
+                    Pilih kapan mau ambil pesanan.
                   </p>
                 </div>
                 {store?.open && store?.close && (
-                  <span className="shrink-0 text-[11px] bg-ink-100 text-ink-700 px-2.5 py-1 rounded-full font-medium inline-flex items-center gap-1.5">
-                    <Icon.Clock size={11} />
+                  <span className="shrink-0 text-[10px] bg-ink-100 text-ink-700 px-2 py-1 rounded-full font-medium inline-flex items-center gap-1">
+                    <Icon.Clock size={10} />
                     {store.open.slice(0, 5)} - {store.close.slice(0, 5)}
                   </span>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-2 gap-2">
                 <PickupOption
                   active={pickup.type === 'now'}
                   onClick={() => setPickup({ type: 'now', time: '' })}
-                  icon={<Icon.Bolt size={18} />}
+                  icon={<Icon.Bolt size={16} />}
                   title="Ambil Sekarang"
-                  desc="Secepatnya setelah pesanan diproses"
+                  desc="Secepatnya"
                 />
                 <PickupOption
                   active={pickup.type === 'later'}
@@ -257,9 +256,9 @@ export default function CheckoutPage() {
                       time: pickup.time || addMinutes(nowHHMM(), 30),
                     })
                   }
-                  icon={<Icon.Clock size={18} />}
+                  icon={<Icon.Clock size={16} />}
                   title="Ambil Nanti"
-                  desc="Atur waktu ambil sendiri"
+                  desc="Atur waktu sendiri"
                 />
               </div>
 
@@ -275,7 +274,7 @@ export default function CheckoutPage() {
                           setPickup({ type: 'later', time: e.target.value })
                         }
                         onBlur={() => setTouched(true)}
-                        className="flex-1 bg-ink-50 border border-ink-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-ink-900 focus:bg-white transition"
+                        className="flex-1 bg-ink-50 border border-ink-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-ink-900 focus:bg-white transition"
                       />
                       <div className="flex gap-1">
                         {[15, 30, 60].map((m) => (
@@ -285,7 +284,7 @@ export default function CheckoutPage() {
                             onClick={() =>
                               setPickup({ type: 'later', time: addMinutes(nowHHMM(), m) })
                             }
-                            className="text-xs bg-white border border-ink-200 hover:border-ink-900 text-ink-700 px-2.5 py-2 rounded-lg transition"
+                            className="text-xs bg-white border border-ink-200 hover:border-ink-900 text-ink-700 px-2 py-1.5 rounded-lg transition"
                           >
                             +{m}m
                           </button>
@@ -293,8 +292,8 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                   </Field>
-                  <p className="text-[11px] text-ink-500 mt-1.5">
-                    Disarankan minimal {minPickupTime} (15 menit dari sekarang).
+                  <p className="text-[10px] text-ink-500 mt-1">
+                    Minimal {minPickupTime} (15 menit dari sekarang).
                   </p>
                 </div>
               )}
@@ -415,8 +414,9 @@ export default function CheckoutPage() {
             </div>
           </aside>
 
-          <div className="md:hidden fixed bottom-3 left-0 right-0 z-40">
-            <div className="max-w-md mx-auto px-4 flex gap-2">
+          {/* Mobile submit */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-ink-200" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            <div className="max-w-md mx-auto px-4 pt-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -432,7 +432,7 @@ export default function CheckoutPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="flex-1 bg-ink-900 hover:bg-ink-800 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 shadow-card active:scale-[.98] flex items-center justify-center gap-2 font-semibold text-sm transition"
+                className="flex-1 bg-ink-900 hover:bg-ink-800 disabled:bg-ink-300 text-white rounded-2xl px-4 py-3.5 active:scale-[.98] flex items-center justify-center gap-2 font-semibold text-sm transition shadow-lg shadow-ink-900/20"
               >
                 {submitting ? <Icon.Spinner size={14} /> : <Icon.ArrowRight size={16} />}
                 Lanjut Bayar
@@ -451,7 +451,7 @@ function PickupOption({ active, onClick, icon, title, desc }) {
       type="button"
       onClick={onClick}
       className={
-        'text-left rounded-2xl border p-3.5 transition active:scale-[.98] ' +
+        'text-left rounded-xl border p-3 transition active:scale-[.98] ' +
         (active
           ? 'border-ink-900 bg-ink-900 text-white'
           : 'border-ink-200 bg-white hover:border-ink-400')
@@ -460,17 +460,19 @@ function PickupOption({ active, onClick, icon, title, desc }) {
       <div className="flex items-center gap-2">
         <div
           className={
-            'w-8 h-8 rounded-lg grid place-items-center ' +
+            'w-7 h-7 rounded-lg grid place-items-center shrink-0 ' +
             (active ? 'bg-white/15' : 'bg-ink-100 text-ink-700')
           }
         >
           {icon}
         </div>
-        <p className={'text-sm font-semibold ' + (active ? 'text-white' : 'text-ink-900')}>
+        <p className={'text-xs font-bold leading-tight ' + (active ? 'text-white' : 'text-ink-900')}>
           {title}
         </p>
       </div>
-      <p className={'text-[11px] mt-1.5 ' + (active ? 'text-white/70' : 'text-ink-500')}>{desc}</p>
+      <p className={'text-[10px] mt-1.5 leading-tight ' + (active ? 'text-white/70' : 'text-ink-500')}>
+        {desc}
+      </p>
     </button>
   );
 }

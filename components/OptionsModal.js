@@ -263,7 +263,7 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
           )}
 
           {!loading && !error && data && (
-            <div className="space-y-6">
+            <div className="space-y-5">
               {dimensions.map((dim) => (
                 <DimensionGroup
                   key={dim.dimension_code}
@@ -294,6 +294,17 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
                 </div>
               ))}
 
+              {/* Divider antara wajib dan opsional */}
+              {addons.length > 0 && (
+                <div className="flex items-center gap-3 pt-2">
+                  <div className="flex-1 h-px bg-ink-200" />
+                  <span className="text-[10px] text-ink-400 uppercase tracking-wider font-bold">
+                    Tambahan Opsional
+                  </span>
+                  <div className="flex-1 h-px bg-ink-200" />
+                </div>
+              )}
+
               {addons.map((dim) => (
                 <AddonGroup
                   key={dim.dimension_code}
@@ -308,19 +319,22 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
 
         {/* footer */}
         {!loading && !error && data && (
-          <div className="border-t border-ink-200 bg-white px-4 md:px-6 py-3 flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-ink-100 rounded-full p-1">
+          <div
+            className="border-t border-ink-200 bg-white px-4 md:px-6 py-2.5 flex items-center gap-2"
+            style={{ paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom))' }}
+          >
+            <div className="flex items-center gap-1.5 bg-ink-100 rounded-full p-1 shrink-0">
               <button
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
-                className="w-8 h-8 rounded-full bg-white border border-ink-200 hover:border-ink-900 text-ink-900 font-semibold flex items-center justify-center active:scale-90 transition"
+                className="w-7 h-7 rounded-full bg-white border border-ink-200 hover:border-ink-900 text-ink-900 font-semibold flex items-center justify-center active:scale-90 transition"
                 aria-label="Kurangi"
               >
                 −
               </button>
-              <span className="text-sm font-semibold w-5 text-center text-ink-900">{qty}</span>
+              <span className="text-xs font-bold w-4 text-center text-ink-900">{qty}</span>
               <button
                 onClick={() => setQty((q) => q + 1)}
-                className="w-8 h-8 rounded-full bg-ink-900 hover:bg-ink-800 text-white font-semibold flex items-center justify-center active:scale-90 transition"
+                className="w-7 h-7 rounded-full bg-ink-900 hover:bg-ink-800 text-white font-semibold flex items-center justify-center active:scale-90 transition"
                 aria-label="Tambah"
               >
                 +
@@ -329,12 +343,12 @@ export default function OptionsModal({ product, storeCode, store, prefetchedData
             <button
               onClick={handleAdd}
               disabled={!matched}
-              className="flex-1 bg-ink-900 text-white rounded-2xl py-3 px-4 hover:bg-ink-800 disabled:bg-ink-300 active:scale-95 transition flex items-center justify-between font-semibold text-sm"
+              className="flex-1 bg-ink-900 text-white rounded-xl py-2.5 px-3 hover:bg-ink-800 disabled:bg-ink-300 active:scale-95 transition flex items-center justify-between font-semibold text-xs gap-2"
             >
-              <span>Tambah ke Keranjang</span>
-              <span className="flex items-baseline gap-1.5">
+              <span>Tambah</span>
+              <span className="flex items-baseline gap-1">
                 {totalPrice > totalPriceAfterDiscount && (
-                  <span className="text-[11px] line-through opacity-60 font-normal">
+                  <span className="text-[10px] line-through opacity-60 font-normal">
                     {rupiah(totalPrice)}
                   </span>
                 )}
@@ -356,30 +370,47 @@ function isInvisible(invisible_when, dimSel) {
 }
 
 function DimensionGroup({ dim, selected, onSelect }) {
+  const items = dim.dimension_value_wordings || [];
+  // Grid 2 kolom kalau item <=2, 3 kolom kalau >=3
+  const gridCols = items.length <= 2 ? 'grid-cols-2' : 'grid-cols-3';
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-2.5">
-        <p className="text-xs font-semibold text-ink-900">{dim.dimension_text}</p>
-        <span className="text-[10px] text-ink-500 font-medium">Wajib</span>
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-bold text-ink-900">{dim.dimension_text}</p>
+        <span className="text-[10px] text-red-500 font-bold uppercase tracking-wider">Wajib</span>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(dim.dimension_value_wordings || []).map((v) => {
+      <div className={'grid gap-2 ' + gridCols}>
+        {items.map((v) => {
           const active = Number(selected) === Number(v.value);
           return (
             <button
               key={v.value}
               onClick={() => onSelect(v.value)}
               className={
-                'rounded-xl border p-2.5 flex flex-col items-center gap-1.5 transition active:scale-95 ' +
+                'relative rounded-xl border-2 p-3 flex flex-col items-center gap-1.5 transition active:scale-95 ' +
                 (active
-                  ? 'border-ink-900 bg-ink-900 text-white'
+                  ? 'border-ink-900 bg-ink-900 text-white shadow-md'
                   : 'border-ink-200 bg-white text-ink-700 hover:border-ink-400')
               }
             >
-              {v.icon && (
-                <img src={v.icon} alt={v.value_text} className={'w-7 h-7 object-contain ' + (active ? 'invert brightness-0 invert' : '')} />
+              {active && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-white text-ink-900 grid place-items-center">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
               )}
-              <span className="text-[11px] font-semibold">{v.value_text}</span>
+              {v.icon && (
+                <img
+                  src={v.icon}
+                  alt={v.value_text}
+                  className={'w-7 h-7 object-contain ' + (active ? 'brightness-0 invert' : '')}
+                />
+              )}
+              <span className="text-xs font-semibold text-center leading-tight">
+                {v.value_text}
+              </span>
             </button>
           );
         })}
@@ -389,25 +420,35 @@ function DimensionGroup({ dim, selected, onSelect }) {
 }
 
 function NoteGroup({ group, selected, onSelect }) {
+  const items = group.values || [];
+  const gridCols = items.length <= 2 ? 'grid-cols-2' : 'grid-cols-3';
+
   return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between mb-2.5">
-        <p className="text-xs font-semibold text-ink-900">{group.option_name}</p>
+    <div className="mt-5">
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-bold text-ink-900">{group.option_name}</p>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {(group.values || []).map((val, i) => {
+      <div className={'grid gap-2 ' + gridCols}>
+        {items.map((val, i) => {
           const active = Number(selected) === Number(val);
           return (
             <button
               key={val}
               onClick={() => onSelect(val)}
               className={
-                'rounded-xl border p-2.5 text-[11px] font-semibold transition active:scale-95 ' +
+                'relative rounded-xl border-2 p-3 text-xs font-semibold transition active:scale-95 ' +
                 (active
-                  ? 'border-ink-900 bg-ink-900 text-white'
+                  ? 'border-ink-900 bg-ink-900 text-white shadow-md'
                   : 'border-ink-200 bg-white text-ink-700 hover:border-ink-400')
               }
             >
+              {active && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-white text-ink-900 grid place-items-center">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                </span>
+              )}
               {group.value_texts[i]}
             </button>
           );
@@ -420,11 +461,13 @@ function NoteGroup({ group, selected, onSelect }) {
 function AddonGroup({ dim, selected, onToggle }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-2.5">
-        <p className="text-xs font-semibold text-ink-900">{dim.dimension_text}</p>
-        <span className="text-[10px] text-ink-500 font-medium">Opsional</span>
+      <div className="flex items-baseline justify-between mb-3">
+        <p className="text-sm font-bold text-ink-900">{dim.dimension_text}</p>
+        <span className="text-[10px] text-ink-500 font-semibold uppercase tracking-wider">
+          Opsional
+        </span>
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="space-y-2">
         {(dim.dimension_value_wordings || []).map((v) => {
           const active = !!selected[v.addon_sku];
           return (
@@ -432,34 +475,50 @@ function AddonGroup({ dim, selected, onToggle }) {
               key={v.addon_sku}
               onClick={() => onToggle(v.addon_sku)}
               className={
-                'rounded-xl border p-2.5 flex items-center gap-2 text-left transition active:scale-95 ' +
+                'w-full rounded-xl border-2 p-2.5 flex items-center gap-3 text-left transition active:scale-[.98] ' +
                 (active
                   ? 'border-ink-900 bg-ink-50'
                   : 'border-ink-200 bg-white hover:border-ink-400')
               }
             >
-              <div className="w-9 h-9 rounded-lg bg-ink-100 overflow-hidden shrink-0">
-                {v.value_icon ? (
-                  <img src={v.value_icon} alt={v.value_text} className="w-full h-full object-cover" />
-                ) : null}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-ink-900 truncate">
-                  {v.value_text}
-                </p>
-                <p className="text-[10px] text-ink-500">+{rupiah(v.addon_price)}</p>
-              </div>
               <div
                 className={
-                  'w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center ' +
+                  'w-5 h-5 rounded-md border-2 shrink-0 grid place-items-center transition ' +
                   (active ? 'border-ink-900 bg-ink-900' : 'border-ink-300 bg-white')
                 }
               >
                 {active && (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 )}
+              </div>
+
+              {v.value_icon && (
+                <div className="w-10 h-10 rounded-lg bg-white border border-ink-200 overflow-hidden shrink-0">
+                  <img
+                    src={v.value_icon}
+                    alt={v.value_text}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-ink-900 truncate">
+                  {v.value_text}
+                </p>
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p
+                  className={
+                    'text-xs font-bold ' +
+                    (active ? 'text-ink-900' : 'text-accent-600')
+                  }
+                >
+                  +{rupiah(v.addon_price)}
+                </p>
               </div>
             </button>
           );

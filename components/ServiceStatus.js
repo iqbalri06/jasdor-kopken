@@ -64,17 +64,11 @@ function ClosedPage({ message }) {
       </div>
 
       <div className="relative max-w-sm w-full text-center">
-        {/* Animated icon */}
-        <div className="relative w-28 h-28 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full bg-ink-900/5 animate-ping" style={{ animationDuration: '3s' }} />
-          <div className="absolute inset-2 rounded-full bg-ink-900/10" />
-          <div className="absolute inset-0 w-28 h-28 rounded-full bg-gradient-to-br from-ink-900 to-accent-700 grid place-items-center text-white shadow-xl">
-            <Icon.Coffee size={44} />
-          </div>
-        </div>
+        {/* Animated coffee cup with steam */}
+        <CoffeeCupAnimation />
 
         {/* Logo */}
-        <div className="w-12 h-12 mx-auto rounded-xl bg-white border border-ink-200 overflow-hidden shadow-soft mb-4">
+        <div className="w-12 h-12 mx-auto rounded-xl bg-white border border-ink-200 overflow-hidden shadow-soft mb-4 mt-2">
           <img
             src="https://cdn.kopikenangan.com/image/new_home/kopi-kenangan-v2.png"
             alt="Kopi Kenangan"
@@ -107,17 +101,146 @@ function ClosedPage({ message }) {
           Hubungi Admin via WhatsApp
         </a>
 
-        <p className="text-xs text-ink-500 mt-4">
-          0812-9154-4061
-        </p>
+        <p className="text-xs text-ink-500 mt-4">0812-9154-4061</p>
 
         {/* Footer */}
         <div className="mt-10 pt-6 border-t border-ink-200">
-          <p className="text-[11px] text-ink-400">
-            Jasa Order Kopi Kenangan
-          </p>
+          <p className="text-[11px] text-ink-400">Jasa Order Kopi Kenangan</p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CoffeeCupAnimation() {
+  return (
+    <div className="relative w-32 h-32 mx-auto mb-3">
+      {/* Pulsing background */}
+      <div
+        className="absolute inset-0 rounded-full bg-accent-200/40 animate-ping"
+        style={{ animationDuration: '3s' }}
+      />
+      <div className="absolute inset-2 rounded-full bg-accent-100/60" />
+
+      <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full">
+        <defs>
+          <linearGradient id="cup-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#A66D33" />
+            <stop offset="100%" stopColor="#5C3B1C" />
+          </linearGradient>
+          <linearGradient id="coffee-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#3B2417" />
+            <stop offset="100%" stopColor="#1F1209" />
+          </linearGradient>
+        </defs>
+
+        {/* Steam wisps */}
+        <g>
+          <path
+            d="M 80 70 Q 75 55 80 40 Q 85 30 80 20"
+            fill="none"
+            stroke="#9CA3AF"
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity="0.6"
+          >
+            <animate
+              attributeName="d"
+              values="M 80 70 Q 75 55 80 40 Q 85 30 80 20;
+                      M 80 70 Q 85 55 80 40 Q 75 30 80 20;
+                      M 80 70 Q 75 55 80 40 Q 85 30 80 20"
+              dur="3s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.3;0.7;0.3"
+              dur="3s"
+              repeatCount="indefinite"
+            />
+          </path>
+
+          <path
+            d="M 100 65 Q 95 50 100 35 Q 105 25 100 15"
+            fill="none"
+            stroke="#9CA3AF"
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity="0.5"
+          >
+            <animate
+              attributeName="d"
+              values="M 100 65 Q 95 50 100 35 Q 105 25 100 15;
+                      M 100 65 Q 105 50 100 35 Q 95 25 100 15;
+                      M 100 65 Q 95 50 100 35 Q 105 25 100 15"
+              dur="3.5s"
+              begin="0.3s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.2;0.6;0.2"
+              dur="3.5s"
+              begin="0.3s"
+              repeatCount="indefinite"
+            />
+          </path>
+
+          <path
+            d="M 120 70 Q 115 55 120 40 Q 125 30 120 20"
+            fill="none"
+            stroke="#9CA3AF"
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity="0.6"
+          >
+            <animate
+              attributeName="d"
+              values="M 120 70 Q 115 55 120 40 Q 125 30 120 20;
+                      M 120 70 Q 125 55 120 40 Q 115 30 120 20;
+                      M 120 70 Q 115 55 120 40 Q 125 30 120 20"
+              dur="3.2s"
+              begin="0.6s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.3;0.7;0.3"
+              dur="3.2s"
+              begin="0.6s"
+              repeatCount="indefinite"
+            />
+          </path>
+        </g>
+
+        {/* Saucer */}
+        <ellipse cx="100" cy="170" rx="55" ry="6" fill="#3F3F46" opacity="0.2" />
+        <ellipse cx="100" cy="165" rx="50" ry="8" fill="url(#cup-gradient)" />
+
+        {/* Cup body */}
+        <path
+          d="M 65 90 Q 65 85 70 85 L 130 85 Q 135 85 135 90 L 132 155 Q 130 165 120 165 L 80 165 Q 70 165 68 155 Z"
+          fill="url(#cup-gradient)"
+        />
+
+        {/* Cup handle */}
+        <path
+          d="M 135 105 Q 155 105 155 125 Q 155 145 135 145"
+          fill="none"
+          stroke="url(#cup-gradient)"
+          strokeWidth="8"
+          strokeLinecap="round"
+        />
+
+        {/* Cup rim */}
+        <ellipse cx="100" cy="90" rx="35" ry="6" fill="#5C3B1C" />
+
+        {/* Coffee surface */}
+        <ellipse cx="100" cy="89" rx="32" ry="5" fill="url(#coffee-gradient)" />
+
+        {/* Coffee shine */}
+        <ellipse cx="92" cy="88" rx="8" ry="1.5" fill="#7C5A3A" opacity="0.6" />
+      </svg>
     </div>
   );
 }

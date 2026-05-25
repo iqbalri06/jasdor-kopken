@@ -8,6 +8,13 @@ export const metadata = {
   description: 'Jasa Order Kopi Kenangan by Iqbal — pesan kopi favoritmu dengan diskon 50% (maks Rp 35.000) lewat WhatsApp.',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#18181B',
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="id">

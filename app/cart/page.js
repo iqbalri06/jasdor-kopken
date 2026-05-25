@@ -247,11 +247,14 @@ export default function CartPage() {
 
       {/* Mobile checkout button */}
       {!empty && (
-        <div className="md:hidden fixed bottom-3 left-0 right-0 z-40">
-          <div className="max-w-md mx-auto px-4">
+        <div
+          className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-ink-200"
+          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        >
+          <div className="max-w-md mx-auto px-4 pt-3">
             <button
               onClick={() => router.push('/checkout')}
-              className="w-full bg-ink-900 text-white rounded-2xl px-4 py-3.5 shadow-card hover:bg-ink-800 active:scale-[.98] flex items-center justify-between transition"
+              className="w-full bg-ink-900 text-white rounded-2xl px-4 py-3.5 shadow-lg shadow-ink-900/20 hover:bg-ink-800 active:scale-[.98] flex items-center justify-between transition"
             >
               <span className="text-sm font-semibold">Lanjut Checkout</span>
               <span className="text-sm font-bold">{rupiah(total)} →</span>
