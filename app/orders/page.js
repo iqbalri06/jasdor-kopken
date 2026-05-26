@@ -96,56 +96,93 @@ export default function MyOrdersPage() {
                   })
                 : '';
 
-              return (
-                <Link
-                  key={order.id}
-                  href={`/order/${order.id}`}
-                  className="block rounded-2xl bg-white border border-ink-200 p-4 hover:border-ink-900 hover:shadow-card transition active:scale-[.99]"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-bold text-ink-900">{order.id}</span>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusInfo.color}`}>
-                          {statusInfo.label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-ink-500 mt-1">
-                        {d.store?.name || 'Outlet'} • {totalQty} item
-                      </p>
-                      <p className="text-[10px] text-ink-400 mt-0.5">{createdAt}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-ink-900">{rupiah(d.total)}</p>
-                      <div className="flex items-center gap-1 mt-1 text-ink-400">
-                        <span className="text-[10px]">Detail</span>
-                        <Icon.ChevronRight size={12} />
-                      </div>
-                    </div>
-                  </div>
+              const unpaid =
+                order.status === 'pending' && !d.proof_url;
+              const detailHref =
+                order.status === 'ready' || order.status === 'done'
+                  ? `/order/confirmed/${order.id}`
+                  : `/order/${order.id}`;
 
-                  {/* Item thumbnails */}
-                  {items.length > 0 && (
-                    <div className="flex gap-1.5 mt-3 overflow-hidden">
-                      {items.slice(0, 4).map((it, i) => (
-                        <div key={i} className="w-10 h-10 rounded-lg bg-ink-100 overflow-hidden shrink-0">
-                          {(it.image || it.m) ? (
-                            <img src={it.image || it.m} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full grid place-items-center text-ink-400">
-                              <Icon.Coffee size={14} />
-                            </div>
-                          )}
+              return (
+                <div
+                  key={order.id}
+                  className={
+                    'rounded-2xl bg-white border overflow-hidden transition ' +
+                    (unpaid
+                      ? 'border-amber-300 shadow-amber-100/50 shadow-md'
+                      : 'border-ink-200 hover:border-ink-900 hover:shadow-card')
+                  }
+                >
+                  <Link
+                    href={detailHref}
+                    className="block p-4 active:scale-[.99] transition"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-ink-900">{order.id}</span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusInfo.color}`}>
+                            {statusInfo.label}
+                          </span>
                         </div>
-                      ))}
-                      {items.length > 4 && (
-                        <div className="w-10 h-10 rounded-lg bg-ink-100 grid place-items-center text-[10px] font-bold text-ink-600 shrink-0">
-                          +{items.length - 4}
+                        <p className="text-xs text-ink-500 mt-1">
+                          {d.store?.name || 'Outlet'} • {totalQty} item
+                        </p>
+                        <p className="text-[10px] text-ink-400 mt-0.5">{createdAt}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-ink-900">
+                          {rupiah(d.totalToPay || d.total)}
+                        </p>
+                        <div className="flex items-center gap-1 mt-1 text-ink-400">
+                          <span className="text-[10px]">Detail</span>
+                          <Icon.ChevronRight size={12} />
                         </div>
-                      )}
+                      </div>
+                    </div>
+
+                    {/* Item thumbnails */}
+                    {items.length > 0 && (
+                      <div className="flex gap-1.5 mt-3 overflow-hidden">
+                        {items.slice(0, 4).map((it, i) => (
+                          <div key={i} className="w-10 h-10 rounded-lg bg-ink-100 overflow-hidden shrink-0">
+                            {(it.image || it.m) ? (
+                              <img src={it.image || it.m} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full grid place-items-center text-ink-400">
+                                <Icon.Coffee size={14} />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {items.length > 4 && (
+                          <div className="w-10 h-10 rounded-lg bg-ink-100 grid place-items-center text-[10px] font-bold text-ink-600 shrink-0">
+                            +{items.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Link>
+
+                  {/* Tombol bayar sekarang untuk order belum bayar */}
+                  {unpaid && (
+                    <div className="px-4 pb-4 pt-0">
+                      <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 flex items-center gap-2 mb-2">
+                        <Icon.AlertTriangle size={14} className="text-amber-600 shrink-0" />
+                        <p className="text-[11px] text-amber-800 font-medium flex-1">
+                          Pesanan belum dibayar
+                        </p>
+                      </div>
+                      <Link
+                        href={`/payment/${order.id}`}
+                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold py-3 rounded-xl active:scale-[.98] transition flex items-center justify-center gap-2"
+                      >
+                        <Icon.Tag size={14} />
+                        Bayar Sekarang
+                      </Link>
                     </div>
                   )}
-                </Link>
+                </div>
               );
             })}
           </div>
