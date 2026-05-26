@@ -8,6 +8,7 @@ import { encodeOrder, generateOrderId } from '@/components/orderEncode';
 import { Icon } from '@/components/Icons';
 import { useServiceStatus } from '@/components/ServiceStatus';
 import { saveOrderToHistory } from '@/app/orders/page';
+import MapPicker from '@/components/MapPicker';
 
 const ADMIN_WA = '6281291544061';
 
@@ -49,6 +50,14 @@ export default function CheckoutPage() {
     hydrated,
     pickup,
     setPickup,
+    orderType,
+    setOrderType,
+    deliveryAddress,
+    setDeliveryAddress,
+    deliveryLocation,
+    setDeliveryLocation,
+    deliveryAvailable,
+    deliveryFee,
   } = useCart();
   const router = useRouter();
   const [name, setName] = useState('');
@@ -74,13 +83,18 @@ export default function CheckoutPage() {
         ? 'Format nomor WA tidak valid'
         : '',
     pickup:
-      pickup.type === 'later' && !pickup.time
+      orderType === 'pickup' && pickup.type === 'later' && !pickup.time
         ? 'Pilih waktu ambil'
-        : pickup.type === 'later' &&
+        : orderType === 'pickup' &&
+          pickup.type === 'later' &&
           store?.open &&
           store?.close &&
           !isTimeWithin(pickup.time, store.open.slice(0, 5), store.close.slice(0, 5))
         ? `Waktu di luar jam operasional outlet (${store.open.slice(0, 5)} - ${store.close.slice(0, 5)})`
+        : '',
+    address:
+      orderType === 'delivery' && !deliveryAddress.trim()
+        ? 'Alamat pengiriman wajib diisi'
         : '',
   };
   const hasError = Object.values(errors).some(Boolean);
@@ -111,6 +125,10 @@ export default function CheckoutPage() {
       createdAt: new Date().toISOString(),
       customer: { name: name.trim(), phone: phone.trim() },
       pickup,
+      orderType,
+      deliveryAddress: orderType === 'delivery' ? deliveryAddress.trim() : '',
+      deliveryLocation: orderType === 'delivery' ? deliveryLocation : null,
+      deliveryFee: orderType === 'delivery' ? deliveryFee : 0,
       store: store
         ? {
             code: store.code,
@@ -225,6 +243,74 @@ export default function CheckoutPage() {
             </section>
 
             <section className="rounded-2xl bg-white border border-ink-200 p-4 space-y-3">
+              <div>
+                <h2 className="text-sm font-semibold text-ink-900">Tipe Pesanan</h2>
+                <p className="text-[11px] text-ink-500 mt-0.5">
+                  Pilih cara mendapatkan pesananmu.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <PickupOption
+                  active={orderType === 'pickup'}
+                  onClick={() => setOrderType('pickup')}
+                  icon={<Icon.Bag size={16} />}
+                  title="Pickup"
+                  desc="Ambil di outlet"
+                />
+                <PickupOption
+                  active={orderType === 'delivery'}
+                  onClick={() => deliveryAvailable && setOrderType('delivery')}
+                  icon={<Icon.Pin size={16} />}
+                  title="Delivery"
+                  desc={deliveryAvailable ? `+${rupiah(deliveryFee || 0)}` : 'Tidak tersedia'}
+                  disabled={!deliveryAvailable}
+                />
+              </div>
+
+              {orderType === 'delivery' && deliveryAvailable && (
+                <div className="fade-up space-y-3">
+                  <Field label="Lokasi Pengiriman" required>
+                    <MapPicker
+                      value={
+                        deliveryLocation
+                          ? { ...deliveryLocation, address: deliveryAddress }
+                          : null
+                      }
+                      onChange={({ lat, lng, address }) => {
+                        setDeliveryLocation({ lat, lng });
+                        if (address) setDeliveryAddress(address);
+                      }}
+                      storeLat={store?.latitude}
+                      storeLng={store?.longitude}
+                    />
+                  </Field>
+
+                  <Field label="Detail Alamat" error={touched && errors.address} required>
+                    <textarea
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      onBlur={() => setTouched(true)}
+                      placeholder="No. rumah, RT/RW, patokan, dll"
+                      rows={3}
+                      className="w-full bg-ink-50 border border-ink-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-ink-900 focus:bg-white transition resize-none"
+                    />
+                  </Field>
+                </div>
+              )}
+
+              {orderType === 'delivery' && !deliveryAvailable && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
+                  <Icon.Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    Outlet ini tidak melayani delivery. Silakan pilih pickup.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {orderType === 'pickup' && (
+            <section className="rounded-2xl bg-white border border-ink-200 p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-sm font-semibold text-ink-900">Waktu Ambil</h2>
@@ -298,6 +384,7 @@ export default function CheckoutPage() {
                 </div>
               )}
             </section>
+            )}
 
             <section className="rounded-2xl bg-ink-900 text-white p-4 md:p-5 flex gap-3">
               <div className="w-10 h-10 rounded-full bg-white/15 grid place-items-center shrink-0 text-white">
@@ -382,6 +469,9 @@ export default function CheckoutPage() {
                   )}
                   <Row label="Subtotal setelah diskon" value={rupiah(subtotal)} />
                   <Row label="Biaya jasa order" value={rupiah(serviceFee)} />
+                  {orderType === 'delivery' && deliveryFee > 0 && (
+                    <Row label="Biaya delivery" value={rupiah(deliveryFee)} />
+                  )}
                 </div>
                 <div className="border-t border-ink-200 mt-2 pt-2 flex justify-between items-baseline">
                   <span className="font-semibold text-ink-900">Total</span>
@@ -445,14 +535,17 @@ export default function CheckoutPage() {
   );
 }
 
-function PickupOption({ active, onClick, icon, title, desc }) {
+function PickupOption({ active, onClick, icon, title, desc, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={
         'text-left rounded-xl border p-3 transition active:scale-[.98] ' +
-        (active
+        (disabled
+          ? 'border-ink-200 bg-ink-50 opacity-50 cursor-not-allowed'
+          : active
           ? 'border-ink-900 bg-ink-900 text-white'
           : 'border-ink-200 bg-white hover:border-ink-400')
       }
@@ -461,16 +554,16 @@ function PickupOption({ active, onClick, icon, title, desc }) {
         <div
           className={
             'w-7 h-7 rounded-lg grid place-items-center shrink-0 ' +
-            (active ? 'bg-white/15' : 'bg-ink-100 text-ink-700')
+            (active && !disabled ? 'bg-white/15' : 'bg-ink-100 text-ink-700')
           }
         >
           {icon}
         </div>
-        <p className={'text-xs font-bold leading-tight ' + (active ? 'text-white' : 'text-ink-900')}>
+        <p className={'text-xs font-bold leading-tight ' + (active && !disabled ? 'text-white' : 'text-ink-900')}>
           {title}
         </p>
       </div>
-      <p className={'text-[10px] mt-1.5 leading-tight ' + (active ? 'text-white/70' : 'text-ink-500')}>
+      <p className={'text-[10px] mt-1.5 leading-tight ' + (active && !disabled ? 'text-white/70' : 'text-ink-500')}>
         {desc}
       </p>
     </button>

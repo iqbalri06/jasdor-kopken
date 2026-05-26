@@ -214,12 +214,32 @@ export default function OrderDetailPage({ params }) {
           </Card>
         </section>
 
-        {/* Outlet */}
+        {/* Outlet & Delivery */}
         {store && (
           <section className="mt-3">
-            <Card title="Outlet" icon={<Icon.Pin size={16} />}>
+            <Card title={order.orderType === 'delivery' ? 'Pengiriman' : 'Outlet'} icon={<Icon.Pin size={16} />}>
               <p className="font-semibold text-ink-900">{store.name}</p>
               <p className="text-xs text-ink-500 mt-1">{store.address}</p>
+              {order.orderType === 'delivery' && order.deliveryAddress && (
+                <div className="mt-3 pt-3 border-t border-ink-100">
+                  <p className="text-[10px] uppercase tracking-wider text-ink-500 font-semibold">
+                    Dikirim ke
+                  </p>
+                  <p className="text-sm text-ink-900 mt-0.5 leading-relaxed">{order.deliveryAddress}</p>
+                  {order.deliveryLocation?.lat && (
+                    <a
+                      href={`https://www.google.com/maps?q=${order.deliveryLocation.lat},${order.deliveryLocation.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition"
+                    >
+                      <Icon.Pin size={12} />
+                      Buka di Google Maps
+                      <Icon.ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+              )}
             </Card>
           </section>
         )}
@@ -312,6 +332,14 @@ export default function OrderDetailPage({ params }) {
                   labelClass="text-ink-700"
                   valueClass="text-ink-900 font-medium text-sm"
                 />
+                {order.orderType === 'delivery' && order.deliveryFee > 0 && (
+                  <Row
+                    label="Biaya delivery"
+                    value={rupiah(order.deliveryFee)}
+                    labelClass="text-ink-700"
+                    valueClass="text-ink-900 font-medium text-sm"
+                  />
+                )}
                 {order.uniqueCode != null && (
                   <Row
                     label={

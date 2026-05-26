@@ -9,7 +9,7 @@ const STORAGE_KEY = 'jasdor-cart-v2';
 // Diskon 50% sudah otomatis dipotong di harga (display & calc)
 export const DISCOUNT_RATE = 0.5;
 export const DISCOUNT_MAX = 35000;
-export const SERVICE_FEE = 7000;
+export const DEFAULT_SERVICE_FEE = 7000;
 
 // Harga setelah diskon 50% dengan cap Rp 35.000.
 // - Harga ≤ 70.000  → potong 50%
@@ -24,7 +24,16 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
   const [store, setStore] = useState(null);
   const [pickup, setPickup] = useState({ type: 'now', time: '' });
+  const [orderType, setOrderType] = useState('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryLocation, setDeliveryLocation] = useState(null); // {lat, lng}
   const [hydrated, setHydrated] = useState(false);
+  const [serviceFeeConfig, setServiceFeeConfig] = useState(DEFAULT_SERVICE_FEE);
+  const [deliveryConfig, setDeliveryConfig] = useState({
+    enabled: false,
+    fee: 0,
+    outlets: [],
+  });
 
   useEffect(() => {
     try {
@@ -37,6 +46,26 @@ export function CartProvider({ children }) {
       }
     } catch (_) {}
     setHydrated(true);
+
+    // Fetch fee dari API
+    fetch('/api/service-fee')
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.error_code === 0 && j.data?.fee != null) {
+          setServiceFeeConfig(j.data.fee);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch delivery config
+    fetch('/api/delivery-config')
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.error_code === 0 && j.data) {
+          setDeliveryConfig(j.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -89,6 +118,9 @@ export function CartProvider({ children }) {
     setItems([]);
     setStore(null);
     setPickup({ type: 'now', time: '' });
+    setOrderType('pickup');
+    setDeliveryAddress('');
+    setDeliveryLocation(null);
   }
 
   // Subtotal harga normal (sebelum diskon)
@@ -105,8 +137,16 @@ export function CartProvider({ children }) {
   // Subtotal akhir (setelah diskon dengan cap)
   const subtotal = origSubtotal - totalDiscount;
 
-  const serviceFee = items.length > 0 ? SERVICE_FEE : 0;
-  const total = subtotal + serviceFee;
+  const serviceFee = items.length > 0 ? serviceFeeConfig : 0;
+  const deliveryAvailable =
+    !!deliveryConfig.enabled &&
+    !!store?.code &&
+    deliveryConfig.outlets.includes(store.code);
+  const deliveryFee =
+    items.length > 0 && orderType === 'delivery' && deliveryAvailable
+      ? deliveryConfig.fee
+      : 0;
+  const total = subtotal + serviceFee + deliveryFee;
   const totalQty = items.reduce((a, b) => a + b.qty, 0);
 
   const value = {
@@ -115,6 +155,15 @@ export function CartProvider({ children }) {
     setStore,
     pickup,
     setPickup,
+    orderType,
+    setOrderType,
+    deliveryAddress,
+    setDeliveryAddress,
+    deliveryLocation,
+    setDeliveryLocation,
+    deliveryAvailable,
+    deliveryFee,
+    deliveryConfig,
     addItem,
     removeItem,
     updateQty,
@@ -128,7 +177,7 @@ export function CartProvider({ children }) {
     totalQty,
     DISCOUNT_RATE,
     DISCOUNT_MAX,
-    SERVICE_FEE,
+    SERVICE_FEE: serviceFeeConfig,
     applyDiscount,
     hydrated,
   };

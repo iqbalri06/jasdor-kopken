@@ -43,12 +43,23 @@ export async function PATCH(request, { params }) {
   try {
     const body = await request.json();
     const sb = getSupabase();
-    const { error } = await sb
-      .from('orders')
-      .update({ status: body.status })
-      .eq('id', params.id);
 
-    if (error) throw error;
+    // Update status
+    const update = { status: body.status };
+    await sb.from('orders').update(update).eq('id', params.id);
+
+    // Optional: update pickup_number di field data
+    if (body.pickup_number != null) {
+      const { data: row } = await sb
+        .from('orders')
+        .select('data')
+        .eq('id', params.id)
+        .maybeSingle();
+      if (row) {
+        const newData = { ...row.data, pickup_number: body.pickup_number };
+        await sb.from('orders').update({ data: newData }).eq('id', params.id);
+      }
+    }
 
     return NextResponse.json({ error_code: 0 });
   } catch (e) {

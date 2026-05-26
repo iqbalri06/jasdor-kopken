@@ -13,7 +13,8 @@ function rupiah(n) {
 const STATUS_MAP = {
   pending: { label: 'Menunggu', color: 'bg-amber-100 text-amber-700 border-amber-200' },
   processing: { label: 'Diproses', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-  done: { label: 'Selesai', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  ready: { label: 'Siap Pickup', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  done: { label: 'Selesai', color: 'bg-ink-100 text-ink-600 border-ink-200' },
   cancelled: { label: 'Dibatalkan', color: 'bg-red-100 text-red-700 border-red-200' },
 };
 
@@ -49,7 +50,7 @@ function OrdersContent() {
     setLoading(false);
   }
 
-  async function updateStatus(orderId, status) {
+  async function updateStatus(orderId, status, extra = {}) {
     const pw = sessionStorage.getItem('admin-auth') || '';
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -58,12 +59,22 @@ function OrdersContent() {
           'Content-Type': 'application/json',
           'x-admin-password': pw,
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...extra }),
       });
       const json = await res.json();
       if (json.error_code === 0) {
         setOrders((prev) =>
-          prev.map((o) => (o.id === orderId ? { ...o, status } : o))
+          prev.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  status,
+                  data: extra.pickup_number
+                    ? { ...o.data, pickup_number: extra.pickup_number }
+                    : o.data,
+                }
+              : o
+          )
         );
       }
     } catch (_) {}
@@ -76,6 +87,7 @@ function OrdersContent() {
     all: orders.length,
     pending: orders.filter((o) => o.status === 'pending').length,
     processing: orders.filter((o) => o.status === 'processing').length,
+    ready: orders.filter((o) => o.status === 'ready').length,
     done: orders.filter((o) => o.status === 'done').length,
   };
 
@@ -102,6 +114,7 @@ function OrdersContent() {
           { key: 'all', label: 'Semua', count: counts.all },
           { key: 'pending', label: 'Menunggu', count: counts.pending },
           { key: 'processing', label: 'Diproses', count: counts.processing },
+          { key: 'ready', label: 'Siap Pickup', count: counts.ready },
           { key: 'done', label: 'Selesai', count: counts.done },
         ].map((s) => (
           <button
@@ -158,6 +171,8 @@ function OrdersContent() {
 
 function OrderCard({ order, onStatusChange }) {
   const [expanded, setExpanded] = useState(false);
+  const [showPickupDialog, setShowPickupDialog] = useState(false);
+  const [pickupNumber, setPickupNumber] = useState('');
   const d = order.data || {};
   const statusInfo = STATUS_MAP[order.status] || STATUS_MAP.pending;
   const items = d.items || [];
@@ -172,6 +187,37 @@ function OrderCard({ order, onStatusChange }) {
   const customerWa = d.customer?.phone
     ? d.customer.phone.replace(/[^0-9]/g, '').replace(/^0/, '62')
     : '';
+
+  function handleReadyClick() {
+    setPickupNumber('');
+    setShowPickupDialog(true);
+  }
+
+  function confirmReady() {
+    if (!pickupNumber.trim()) return;
+    onStatusChange(order.id, 'ready', { pickup_number: pickupNumber.trim() });
+    setShowPickupDialog(false);
+
+    // Kirim WA notifikasi ke pelanggan
+    if (customerWa) {
+      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      const message = [
+        `Halo ${d.customer?.name || 'Kak'}, pesanan kamu sudah siap di-pickup!`,
+        ``,
+        `Nomor Order: ${pickupNumber.trim()}`,
+        `Order ID: ${order.id}`,
+        ``,
+        `Tunjukkan nomor order untuk pickup pesanan kamu.`,
+        ``,
+        `Lihat detail:`,
+        `${baseUrl}/order/confirmed/${order.id}`,
+      ].join('\n');
+      window.open(
+        `https://wa.me/${customerWa}?text=${encodeURIComponent(message)}`,
+        '_blank'
+      );
+    }
+  }
 
   return (
     <div className="rounded-2xl bg-white border border-ink-200 overflow-hidden">
@@ -294,11 +340,27 @@ function OrderCard({ order, onStatusChange }) {
             )}
             {order.status === 'processing' && (
               <button
-                onClick={() => onStatusChange(order.id, 'done')}
-                className="text-xs bg-emerald-500 text-white px-3 py-2 rounded-xl font-semibold hover:bg-emerald-600 transition"
+                onClick={handleReadyClick}
+                className="text-xs bg-emerald-500 text-white px-3 py-2 rounded-xl font-semibold hover:bg-emerald-600 transition inline-flex items-center gap-1"
               >
-                Selesai
+                <Icon.Check size={12} strokeWidth={3} />
+                Siap Pickup
               </button>
+            )}
+            {order.status === 'ready' && (
+              <>
+                <button
+                  onClick={() => onStatusChange(order.id, 'done')}
+                  className="text-xs bg-ink-900 text-white px-3 py-2 rounded-xl font-semibold hover:bg-ink-800 transition"
+                >
+                  Selesai
+                </button>
+                {d.pickup_number && (
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-3 py-2 rounded-xl font-bold inline-flex items-center gap-1">
+                    No. {d.pickup_number}
+                  </span>
+                )}
+              </>
             )}
             {(order.status === 'pending' || order.status === 'processing') && (
               <button
@@ -330,6 +392,69 @@ function OrderCard({ order, onStatusChange }) {
           </div>
         </div>
       )}
+
+      {/* Pickup number dialog */}
+      {showPickupDialog && (
+        <PickupDialog
+          orderId={order.id}
+          customerName={d.customer?.name}
+          value={pickupNumber}
+          onChange={setPickupNumber}
+          onCancel={() => setShowPickupDialog(false)}
+          onConfirm={confirmReady}
+        />
+      )}
+    </div>
+  );
+}
+
+function PickupDialog({ orderId, customerName, value, onChange, onCancel, onConfirm }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink-900/60 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden fade-up">
+        <div className="px-6 pt-6 pb-4 text-center border-b border-ink-100">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-100 grid place-items-center text-emerald-600 mb-3">
+            <Icon.Check size={26} strokeWidth={3} />
+          </div>
+          <h2 className="text-lg font-bold text-ink-900">Siap di-Pickup</h2>
+          <p className="text-xs text-ink-500 mt-1">
+            Masukkan nomor order untuk pelanggan {customerName ? <b>{customerName}</b> : ''}
+          </p>
+        </div>
+
+        <div className="p-6">
+          <label className="text-xs font-semibold text-ink-900">Nomor Order</label>
+          <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="cth: 015"
+            inputMode="numeric"
+            className="w-full mt-1.5 bg-ink-50 border border-ink-200 rounded-xl px-4 py-3.5 text-2xl font-extrabold text-center tracking-widest text-ink-900 outline-none focus:border-ink-900 focus:bg-white transition"
+            autoFocus
+          />
+          <p className="text-[10px] text-ink-500 mt-1.5">
+            Nomor ini akan dikirim ke pelanggan via WhatsApp untuk pickup.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 mt-5">
+            <button
+              onClick={onCancel}
+              className="bg-white border border-ink-200 hover:border-ink-900 text-ink-700 text-sm font-medium py-3 rounded-2xl transition"
+            >
+              Batal
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={!value.trim()}
+              className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white text-sm font-semibold py-3 rounded-2xl transition active:scale-[.98]"
+            >
+              Konfirmasi & Kirim
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
