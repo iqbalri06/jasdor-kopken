@@ -79,11 +79,9 @@ export default function TestimonialsPage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
               {items.map((it, idx) => (
-                <button
+                <div
                   key={it.id}
-                  type="button"
-                  onClick={() => setActive(idx)}
-                  className="relative aspect-square rounded-2xl overflow-hidden bg-ink-100 group active:scale-[.98] transition fade-up"
+                  className="group relative aspect-square rounded-2xl overflow-hidden bg-ink-100 fade-up"
                 >
                   <img
                     src={it.url}
@@ -91,8 +89,18 @@ export default function TestimonialsPage() {
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     loading="lazy"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition" />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setActive(idx)}
+                    className="absolute inset-0 flex items-end p-2.5 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition"
+                    aria-label="Lihat detail testimoni"
+                  >
+                    <span className="w-full inline-flex items-center justify-center gap-1.5 bg-white/95 backdrop-blur text-ink-900 text-[11px] font-bold py-2 rounded-xl shadow-card active:scale-95 transition">
+                      Lihat Detail
+                      <Icon.ArrowRight size={12} />
+                    </span>
+                  </button>
+                </div>
               ))}
             </div>
           )}

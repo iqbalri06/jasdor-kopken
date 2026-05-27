@@ -60,8 +60,12 @@ function TopBar({ title, pathname, router }) {
       <div className="max-w-lg mx-auto px-4 h-16 flex items-center justify-between gap-3">
         <Link href="/admin" className="flex items-center gap-2.5 min-w-0">
           <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-ink-900 to-accent-700 grid place-items-center text-white shadow-md">
-              <Icon.Coffee size={18} />
+            <div className="w-10 h-10 rounded-xl bg-white border border-ink-200 grid place-items-center overflow-hidden shadow-sm">
+              <img
+                src="https://cdn.kopikenangan.com/image/new_home/kopi-kenangan-v2.png"
+                alt="Kopi Kenangan"
+                className="w-full h-full object-contain p-1"
+              />
             </div>
             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-white" />
           </div>
