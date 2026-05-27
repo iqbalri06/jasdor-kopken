@@ -46,6 +46,14 @@ export default function AdminSettingsPage() {
           desc="Upload QRIS statis"
           onClick={() => setActiveSection('qris')}
         />
+
+        <SettingItem
+          icon={<Icon.Coffee size={20} />}
+          iconBg="bg-emerald-50 text-emerald-600"
+          title="Testimoni"
+          desc="Upload foto testimoni pelanggan"
+          onClick={() => setActiveSection('testimonials')}
+        />
       </div>
 
       {/* Modal sections */}
@@ -67,6 +75,11 @@ export default function AdminSettingsPage() {
       {activeSection === 'qris' && (
         <SectionModal title="QRIS Pembayaran" onClose={() => setActiveSection(null)}>
           <QRISSection />
+        </SectionModal>
+      )}
+      {activeSection === 'testimonials' && (
+        <SectionModal title="Testimoni" onClose={() => setActiveSection(null)}>
+          <TestimonialsSection />
         </SectionModal>
       )}
     </AdminLayout>
@@ -692,4 +705,207 @@ function QRISSection() {
 
 function rupiah(n) {
   return 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+}
+
+function TestimonialsSection() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    try {
+      const res = await fetch('/api/testimonials');
+      const json = await res.json();
+      if (json.error_code === 0) setItems(json.data || []);
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function uploadFiles(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f.type?.startsWith('image/'));
+    if (files.length === 0) {
+      setMsg('Pilih file gambar terlebih dahulu');
+      setTimeout(() => setMsg(''), 2000);
+      return;
+    }
+
+    setUploading(true);
+    setProgress({ done: 0, total: files.length });
+    setMsg('');
+    const pw = sessionStorage.getItem('admin-auth') || '';
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const fd = new FormData();
+      fd.append('file', files[i]);
+      try {
+        const res = await fetch('/api/testimonials', {
+          method: 'POST',
+          headers: { 'x-admin-password': pw },
+          body: fd,
+        });
+        const json = await res.json();
+        if (json.error_code === 0) success++;
+        else failed++;
+      } catch (_) {
+        failed++;
+      }
+      setProgress({ done: i + 1, total: files.length });
+    }
+
+    setUploading(false);
+    setMsg(
+      failed === 0
+        ? `${success} foto berhasil diupload`
+        : `${success} berhasil, ${failed} gagal`
+    );
+    setTimeout(() => setMsg(''), 2500);
+    await load();
+  }
+
+  async function remove(id) {
+    if (!confirm('Hapus foto testimoni ini?')) return;
+    const pw = sessionStorage.getItem('admin-auth') || '';
+    try {
+      const res = await fetch(`/api/testimonials?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { 'x-admin-password': pw },
+      });
+      const json = await res.json();
+      if (json.error_code === 0) {
+        setItems((prev) => prev.filter((it) => it.id !== id));
+        setMsg('Foto dihapus');
+        setTimeout(() => setMsg(''), 1800);
+      } else {
+        setMsg(json.msg || 'Gagal hapus');
+      }
+    } catch (e) {
+      setMsg(e.message || 'Gagal hapus');
+    }
+  }
+
+  if (loading) return <Icon.Spinner size={20} className="mx-auto mt-8 text-ink-400" />;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur grid place-items-center">
+            <Icon.Coffee size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
+              Testimoni Aktif
+            </p>
+            <p className="text-2xl font-extrabold mt-0.5 leading-none">{items.length} foto</p>
+            <p className="text-[10px] opacity-80 mt-0.5">Tampil di halaman testimoni</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Upload */}
+      <div className="rounded-2xl bg-white p-4 space-y-3">
+        <div>
+          <p className="text-xs font-bold text-ink-900">Upload Foto</p>
+          <p className="text-[10px] text-ink-500 mt-0.5">
+            Hanya foto, maks 5 MB per file. Bisa pilih banyak sekaligus.
+          </p>
+        </div>
+
+        <label
+          className={
+            'block w-full rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition ' +
+            (uploading
+              ? 'border-ink-200 bg-ink-50 cursor-wait'
+              : 'border-ink-300 bg-ink-50 hover:border-ink-900 hover:bg-white')
+          }
+        >
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            disabled={uploading}
+            onChange={(e) => {
+              uploadFiles(e.target.files);
+              e.target.value = '';
+            }}
+            className="hidden"
+          />
+          {uploading ? (
+            <div className="flex flex-col items-center gap-2 text-ink-700">
+              <Icon.Spinner size={22} />
+              <p className="text-xs font-semibold">
+                Mengupload {progress.done}/{progress.total}...
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-ink-700">
+              <div className="w-11 h-11 rounded-full bg-white grid place-items-center text-ink-500 shadow-soft">
+                <Icon.Plus size={22} />
+              </div>
+              <p className="text-sm font-bold text-ink-900">Pilih foto</p>
+              <p className="text-[10px] text-ink-500">JPG, PNG, atau WebP</p>
+            </div>
+          )}
+        </label>
+
+        {msg && (
+          <p
+            className={
+              'text-xs font-semibold text-center ' +
+              (msg.includes('berhasil') || msg.includes('dihapus')
+                ? 'text-emerald-600'
+                : 'text-red-600')
+            }
+          >
+            {msg}
+          </p>
+        )}
+      </div>
+
+      {/* Gallery */}
+      <div className="rounded-2xl bg-white p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-bold text-ink-900">Galeri Foto ({items.length})</p>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="text-xs text-ink-500 text-center py-6">
+            Belum ada foto testimoni
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {items.map((it) => (
+              <div
+                key={it.id}
+                className="relative aspect-square rounded-xl overflow-hidden bg-ink-100 group"
+              >
+                <img
+                  src={it.url}
+                  alt="Testimoni"
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+                <button
+                  onClick={() => remove(it.id)}
+                  className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-red-500 text-white grid place-items-center shadow-md hover:bg-red-600 active:scale-90 transition"
+                  aria-label="Hapus"
+                  title="Hapus"
+                >
+                  <Icon.Trash size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

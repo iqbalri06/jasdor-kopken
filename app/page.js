@@ -252,6 +252,27 @@ export default function HomePage() {
           </section>
         )}
 
+        {/* Testimoni CTA */}
+        {!searched && (
+          <section className="mt-3">
+            <Link
+              href="/testimonials"
+              className="w-full rounded-2xl bg-white border border-ink-200 p-3.5 flex items-center gap-3 hover:border-ink-900 hover:shadow-card transition active:scale-[.99]"
+            >
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 grid place-items-center shrink-0 text-emerald-600 border border-emerald-200">
+                <Icon.Coffee size={20} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold text-ink-900">Lihat Testimoni</p>
+                <p className="text-[11px] text-ink-500 mt-0.5 leading-snug">
+                  Bukti pesanan pelanggan yang sudah sampai
+                </p>
+              </div>
+              <Icon.ChevronRight size={18} className="text-ink-400 shrink-0" />
+            </Link>
+          </section>
+        )}
+
         {/* Search results */}
         {searched && (
           <section className="mt-5">
