@@ -113,8 +113,8 @@ export async function POST(request) {
       .select('value')
       .eq('key', 'referral_security')
       .maybeSingle();
-    const cooldownHours = secCfg?.value?.withdraw_cooldown_hours ?? 24;
-    const maxPerDay = secCfg?.value?.max_withdraw_per_day ?? 1;
+    const cooldownHours = secCfg?.value?.withdraw_cooldown_hours ?? 0;
+    const maxPerDay = secCfg?.value?.max_withdraw_per_day ?? 3;
     const maxAttempts = secCfg?.value?.pin_max_attempts ?? 5;
     const lockoutMin = secCfg?.value?.pin_lockout_minutes ?? 60;
 
@@ -238,8 +238,8 @@ export async function POST(request) {
       );
     }
 
-    // Cooldown setelah first credit
-    if (user.first_credit_at) {
+    // Cooldown setelah first credit (kalau di-set > 0)
+    if (cooldownHours > 0 && user.first_credit_at) {
       const sinceFirstCredit =
         (Date.now() - new Date(user.first_credit_at).getTime()) / 3600000;
       if (sinceFirstCredit < cooldownHours) {
@@ -254,20 +254,11 @@ export async function POST(request) {
         return NextResponse.json(
           {
             error_code: 1,
-            msg: `Withdraw tersedia ${remaining} jam lagi (cooldown anti-fraud).`,
+            msg: `Withdraw tersedia ${remaining} jam lagi.`,
           },
           { status: 400 }
         );
       }
-    } else {
-      // Belum pernah dapat credit → tidak boleh withdraw
-      return NextResponse.json(
-        {
-          error_code: 1,
-          msg: 'Belum ada referral yang berhasil. Ajak teman dulu untuk dapat saldo.',
-        },
-        { status: 400 }
-      );
     }
 
     // Cek max withdraw per hari

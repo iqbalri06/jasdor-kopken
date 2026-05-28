@@ -71,7 +71,8 @@ export async function PATCH(request, { params }) {
 
     // Trigger referral logic berdasarkan transisi status
     if (row && body.status && row.status !== body.status) {
-      if (body.status === 'done') {
+      // Credit saldo saat order di-PROSES (admin verify bayar) — biar user lebih cepat dapat
+      if (body.status === 'processing' || body.status === 'done') {
         await creditReferralReward(sb, params.id);
       } else if (body.status === 'cancelled') {
         await cancelReferralReward(sb, params.id);
