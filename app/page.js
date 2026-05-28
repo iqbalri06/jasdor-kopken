@@ -170,7 +170,7 @@ export default function HomePage() {
 
   return (
     <main className="pb-24">
-      <Header title="Jasa Order Kopi Kenangan" subtitle="Iqbal" />
+      <Header title="Jasa Order Kopi Kenangan" subtitle="JasdorAja" />
 
       <div className="max-w-3xl mx-auto px-4 md:px-6 pt-3 md:pt-4">
         {/* Pilih Outlet CTA - prominent above search */}

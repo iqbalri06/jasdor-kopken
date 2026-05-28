@@ -1,0 +1,18 @@
+node_modules/
+.env
+.env.local
+
+# Baileys session — JANGAN COMMIT
+auth/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

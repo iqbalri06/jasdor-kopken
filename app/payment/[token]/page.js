@@ -6,8 +6,6 @@ import { decodeOrder } from '@/components/orderEncode';
 import { Icon } from '@/components/Icons';
 import { EWALLET_METHODS, BANK_METHODS, PaymentLogo } from '@/components/PaymentLogos';
 
-const ADMIN_WA = '6281291544061';
-
 function rupiah(n) {
   if (n == null || isNaN(n)) return 'Rp 0';
   return 'Rp ' + Number(n).toLocaleString('id-ID');
@@ -19,6 +17,9 @@ export default function PaymentPage({ params }) {
   const [merchantName, setMerchantName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [timeoutMin, setTimeoutMin] = useState(30);
+  const [now, setNow] = useState(Date.now());
+  const [autoCancelled, setAutoCancelled] = useState(false);
 
   const [proofFile, setProofFile] = useState(null);
   const [proofPreview, setProofPreview] = useState('');
@@ -31,7 +32,24 @@ export default function PaymentPage({ params }) {
   useEffect(() => {
     // Coba load dari DB pakai order ID dulu
     loadOrder();
+    loadTimeout();
   }, [params.token]);
+
+  // Tick setiap detik untuk countdown
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function loadTimeout() {
+    try {
+      const res = await fetch('/api/payment-timeout');
+      const json = await res.json();
+      if (json.error_code === 0 && json.data?.minutes) {
+        setTimeoutMin(json.data.minutes);
+      }
+    } catch (_) {}
+  }
 
   async function loadOrder() {
     try {
@@ -192,6 +210,19 @@ export default function PaymentPage({ params }) {
   // Step indicator
   const currentStep = uploaded ? 3 : proofFile ? 2 : 1;
 
+  // Hitung countdown (kalau order pending & belum upload bukti)
+  const orderCreatedAt = order?.createdAt
+    ? new Date(order.createdAt).getTime()
+    : null;
+  const deadline = orderCreatedAt ? orderCreatedAt + timeoutMin * 60_000 : null;
+  const remainingMs = deadline ? deadline - now : null;
+  const showCountdown =
+    !uploaded &&
+    !proofFile &&
+    deadline &&
+    !autoCancelled;
+  const expired = remainingMs != null && remainingMs <= 0;
+
   return (
     <main className="pb-24 bg-gradient-to-b from-ink-50 to-white">
       <Header title="Pembayaran" back="/" showCart={false} />
@@ -211,7 +242,7 @@ export default function PaymentPage({ params }) {
         {/* QR Code Card */}
         {qrDataUrl ? (
           <div className="rounded-3xl bg-white border border-ink-200 overflow-hidden shadow-card">
-            {/* Header dengan logo QRIS */}
+            {/* Header dengan logo QRIS + countdown */}
             <div className="bg-gradient-to-r from-ink-900 to-ink-800 px-5 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="bg-white text-red-600 font-extrabold text-[11px] px-2 py-1 rounded">
@@ -219,11 +250,28 @@ export default function PaymentPage({ params }) {
                 </div>
                 <span className="text-white text-xs font-semibold">Bayar dengan scan</span>
               </div>
-              <div className="flex items-center gap-1.5 text-white/80">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[10px] font-semibold uppercase tracking-wider">Aktif</span>
-              </div>
+              {showCountdown ? (
+                <CountdownInline
+                  remainingMs={remainingMs}
+                  expired={expired}
+                />
+              ) : (
+                <div className="flex items-center gap-1.5 text-white/80">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">Aktif</span>
+                </div>
+              )}
             </div>
+
+            {/* Expired banner — strip merah di bawah header */}
+            {showCountdown && expired && (
+              <div className="bg-red-50 border-b border-red-200 px-5 py-2 flex items-center gap-2">
+                <Icon.AlertTriangle size={14} className="text-red-600 shrink-0" />
+                <p className="text-[11px] text-red-700 font-semibold leading-tight">
+                  Waktu pembayaran habis. Pesanan akan dibatalkan otomatis dalam beberapa saat.
+                </p>
+              </div>
+            )}
 
             {/* Merchant info */}
             {(merchantName || order?.totalToPay) && (
@@ -445,25 +493,32 @@ export default function PaymentPage({ params }) {
           </div>
         </div>
 
-        {/* Setelah upload — tombol kirim WA */}
+        {/* Setelah upload — bukti diterima */}
         {uploaded && (
           <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-2 border-emerald-200 p-5 fade-up">
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white grid place-items-center shrink-0">
                 <Icon.Check size={20} strokeWidth={3} />
               </div>
-              <div>
-                <p className="text-sm font-bold text-emerald-900">Bukti berhasil diupload</p>
-                <p className="text-xs text-emerald-700">Tinggal kirim ke admin via WhatsApp</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-emerald-900">
+                  Bukti berhasil diupload
+                </p>
+                <p className="text-xs text-emerald-700 mt-1 leading-relaxed">
+                  Admin sudah dapat notifikasi otomatis. Tunggu konfirmasi via
+                  WhatsApp ya — pesananmu akan segera diproses.
+                </p>
+                {order?.orderId && (
+                  <a
+                    href={`/order/${order.orderId}`}
+                    className="inline-flex items-center gap-1 mt-3 text-xs font-bold text-emerald-700 hover:text-emerald-900 transition"
+                  >
+                    Lihat detail pesanan
+                    <Icon.ArrowRight size={12} />
+                  </a>
+                )}
               </div>
             </div>
-            <button
-              onClick={handleSendWA}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl px-4 py-4 active:scale-[.98] transition flex items-center justify-center gap-2 font-semibold text-sm shadow-lg shadow-emerald-500/30"
-            >
-              <Icon.WhatsApp size={20} />
-              Kirim Pesanan ke Admin
-            </button>
           </div>
         )}
 
@@ -484,6 +539,49 @@ export default function PaymentPage({ params }) {
         )}
       </div>
     </main>
+  );
+}
+
+function CountdownInline({ remainingMs, expired }) {
+  if (expired) {
+    return (
+      <div className="flex items-center gap-1.5 bg-red-500/20 px-2 py-1 rounded-full">
+        <Icon.AlertTriangle size={11} className="text-red-300" />
+        <span className="text-[10px] font-bold text-red-200 uppercase tracking-wider">
+          Habis
+        </span>
+      </div>
+    );
+  }
+
+  const totalSec = Math.max(0, Math.floor(remainingMs / 1000));
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+
+  // Warna berubah saat ≤ 5 menit
+  const lowTime = totalSec <= 300;
+
+  return (
+    <div
+      className={
+        'flex items-center gap-1.5 px-2 py-1 rounded-full ' +
+        (lowTime ? 'bg-red-500/30' : 'bg-white/15')
+      }
+    >
+      <Icon.Clock
+        size={11}
+        className={lowTime ? 'text-red-200' : 'text-white/80'}
+      />
+      <span
+        className={
+          'text-[11px] font-bold tabular-nums tracking-tight ' +
+          (lowTime ? 'text-red-100' : 'text-white')
+        }
+      >
+        {pad(min)}:{pad(sec)}
+      </span>
+    </div>
   );
 }
 

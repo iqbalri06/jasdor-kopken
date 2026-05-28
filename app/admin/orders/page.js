@@ -197,26 +197,7 @@ function OrderCard({ order, onStatusChange }) {
     if (!pickupNumber.trim()) return;
     onStatusChange(order.id, 'ready', { pickup_number: pickupNumber.trim() });
     setShowPickupDialog(false);
-
-    // Kirim WA notifikasi ke pelanggan
-    if (customerWa) {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      const message = [
-        `Halo ${d.customer?.name || 'Kak'}, pesanan kamu sudah siap di-pickup!`,
-        ``,
-        `Nomor Order: ${pickupNumber.trim()}`,
-        `Order ID: ${order.id}`,
-        ``,
-        `Tunjukkan nomor order untuk pickup pesanan kamu.`,
-        ``,
-        `Lihat detail:`,
-        `${baseUrl}/order/confirmed/${order.id}`,
-      ].join('\n');
-      window.open(
-        `https://wa.me/${customerWa}?text=${encodeURIComponent(message)}`,
-        '_blank'
-      );
-    }
+    // Notifikasi ke customer dikirim otomatis oleh bot WA via Supabase Realtime
   }
 
   return (
@@ -435,7 +416,7 @@ function PickupDialog({ orderId, customerName, value, onChange, onCancel, onConf
             autoFocus
           />
           <p className="text-[10px] text-ink-500 mt-1.5">
-            Nomor ini akan dikirim ke pelanggan via WhatsApp untuk pickup.
+            Nomor ini akan dikirim ke pelanggan otomatis oleh bot WA.
           </p>
 
           <div className="grid grid-cols-2 gap-2 mt-5">
@@ -450,7 +431,7 @@ function PickupDialog({ orderId, customerName, value, onChange, onCancel, onConf
               disabled={!value.trim()}
               className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white text-sm font-semibold py-3 rounded-2xl transition active:scale-[.98]"
             >
-              Konfirmasi & Kirim
+              Konfirmasi
             </button>
           </div>
         </div>

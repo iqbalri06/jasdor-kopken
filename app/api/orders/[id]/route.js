@@ -57,15 +57,17 @@ export async function PATCH(request, { params }) {
       .eq('id', params.id)
       .maybeSingle();
 
-    // Update status
+    // Bangun update payload — gabungkan status & pickup_number jadi SATU UPDATE
+    // supaya hanya men-trigger 1 Realtime event (cegah pesan bot dobel).
     const update = { status: body.status };
-    await sb.from('orders').update(update).eq('id', params.id);
-
-    // Optional: update pickup_number di field data
     if (body.pickup_number != null && row) {
-      const newData = { ...row.data, pickup_number: body.pickup_number };
-      await sb.from('orders').update({ data: newData }).eq('id', params.id);
+      update.data = { ...(row.data || {}), pickup_number: body.pickup_number };
     }
+    if (body.cancel_reason != null && row) {
+      update.data = { ...(update.data || row.data || {}), cancel_reason: body.cancel_reason };
+    }
+
+    await sb.from('orders').update(update).eq('id', params.id);
 
     // Trigger referral logic berdasarkan transisi status
     if (row && body.status && row.status !== body.status) {

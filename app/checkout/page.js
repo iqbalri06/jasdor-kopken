@@ -12,8 +12,6 @@ import { saveOrderToHistory } from '@/app/orders/page';
 import MapPicker from '@/components/MapPicker';
 import { normalizePhone, isValidPhone } from '@/lib/phone';
 
-const ADMIN_WA = '6281291544061';
-
 function pad(n) {
   return n.toString().padStart(2, '0');
 }

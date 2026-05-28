@@ -31,7 +31,7 @@ export default function Header({ title, subtitle, back, showCart = true }) {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] uppercase tracking-[0.18em] text-ink-500 font-semibold leading-none">
-                {subtitle || 'Iqbal'}
+                {subtitle || 'JasdorAja'}
               </p>
               <h1 className="text-sm md:text-base font-semibold text-ink-900 truncate leading-tight mt-0.5">
                 {title || 'Jasa Order Kopi Kenangan'}

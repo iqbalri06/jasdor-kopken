@@ -38,7 +38,7 @@ export default function MenuPage({ params }) {
   const [capModal, setCapModal] = useState({ open: false, mode: 'over', lostSaving: 0 });
   const pendingActionRef = useRef(null);
 
-  const { items, store, addItem, totalQty, total, origSubtotal, DISCOUNT_RATE, DISCOUNT_MAX } = useCart();
+  const { items, store, addItem, totalQty, subtotal, origSubtotal, DISCOUNT_RATE, DISCOUNT_MAX } = useCart();
 
   function showToast(msg) {
     setToast(msg);
@@ -452,7 +452,16 @@ export default function MenuPage({ params }) {
                 </span>
                 <span className="text-sm font-medium">Lihat Keranjang</span>
               </div>
-              <span className="text-sm font-semibold">{rupiah(total)} →</span>
+              <div className="text-right flex flex-col items-end leading-none">
+                {origSubtotal > subtotal && (
+                  <span className="text-[10px] line-through opacity-60">
+                    {rupiah(origSubtotal)}
+                  </span>
+                )}
+                <span className="text-sm font-semibold mt-0.5">
+                  {rupiah(subtotal)} →
+                </span>
+              </div>
             </Link>
           </div>
         </div>
