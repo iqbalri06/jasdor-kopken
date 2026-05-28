@@ -5,6 +5,7 @@ import {
   cancelReferralReward,
   refundBalanceOnCancel,
 } from '@/lib/referral';
+import { incrementStock } from '@/lib/accountStock';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +74,8 @@ export async function PATCH(request, { params }) {
       } else if (body.status === 'cancelled') {
         await cancelReferralReward(sb, params.id);
         await refundBalanceOnCancel(sb, row.data || {});
+        // Kembalikan stok akun
+        await incrementStock(sb, 1);
       }
     }
 

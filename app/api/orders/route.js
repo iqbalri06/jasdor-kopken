@@ -3,6 +3,7 @@ import { getSupabase } from '@/lib/supabase';
 import { attachReferralToOrder, applyBalanceToOrder } from '@/lib/referral';
 import { normalizePhone } from '@/lib/phone';
 import { getRequestMeta, logAudit, trackDevice } from '@/lib/security';
+import { decrementStock, checkStockAvailable } from '@/lib/accountStock';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,26 @@ export async function POST(request) {
   // Inject IP & fingerprint ke order untuk fraud detection
   body.ip = meta.ip;
   body.fingerprint = meta.fingerprint || body.fingerprint || '';
+
+  // === Cek stok akun BEFORE memproses apapun ===
+  const stockCheck = await checkStockAvailable(sb);
+  if (!stockCheck.ok) {
+    await logAudit(sb, {
+      phone: normalizePhone(body.customer?.phone) || null,
+      action: 'order_create',
+      result: 'blocked',
+      detail: { reason: 'stock_empty' },
+      meta,
+    });
+    return NextResponse.json(
+      {
+        error_code: 1,
+        msg: stockCheck.message,
+        code: 'stock_unavailable',
+      },
+      { status: 503 }
+    );
+  }
 
   try {
     // Validasi referral code SEBELUM insert order — block self-referral
@@ -72,6 +93,37 @@ export async function POST(request) {
       body.totalToPay = (Number(body.totalToPay) || 0) + diff;
     }
 
+    // Decrement stok atomically (race-condition aman)
+    const stockResult = await decrementStock(sb);
+    if (!stockResult.ok) {
+      // Stok habis di antara check & decrement
+      // Refund balance
+      if (applied > 0) {
+        const phone = normalizePhone(body.customer?.phone);
+        if (phone) {
+          const { data: user } = await sb
+            .from('referral_users')
+            .select('balance')
+            .eq('phone', phone)
+            .maybeSingle();
+          if (user) {
+            await sb
+              .from('referral_users')
+              .update({ balance: user.balance + applied })
+              .eq('phone', phone);
+          }
+        }
+      }
+      return NextResponse.json(
+        {
+          error_code: 1,
+          msg: stockResult.message,
+          code: 'stock_unavailable',
+        },
+        { status: 503 }
+      );
+    }
+
     const { error } = await sb.from('orders').insert({
       id: body.orderId,
       data: body,
@@ -86,7 +138,6 @@ export async function POST(request) {
 
     if (!refResult.ok && refResult.reason === 'self_referral') {
       // Order sudah inserted — biarkan, tapi referral di-block.
-      // Self-referral sudah dicek di atas, jadi tidak akan sampai di sini normalnya.
     }
 
     // Track device customer untuk anti-fraud

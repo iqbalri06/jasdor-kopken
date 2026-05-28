@@ -7,6 +7,7 @@ import { useCart, rupiah } from '@/components/CartContext';
 import { encodeOrder, generateOrderId } from '@/components/orderEncode';
 import { Icon } from '@/components/Icons';
 import { useServiceStatus } from '@/components/ServiceStatus';
+import { useStock } from '@/components/StockGuard';
 import { saveOrderToHistory } from '@/app/orders/page';
 import MapPicker from '@/components/MapPicker';
 import { normalizePhone, isValidPhone } from '@/lib/phone';
@@ -66,6 +67,7 @@ export default function CheckoutPage() {
   const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const serviceStatus = useServiceStatus();
+  const stock = useStock();
 
   // Referral state
   const [referralCode, setReferralCode] = useState('');
@@ -236,6 +238,11 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (!stock.available) {
+      stock.showUnavailable();
+      return;
+    }
+
     // Block submit kalau kode referral belum tervalidasi atau bermasalah
     if (referralCode.trim()) {
       if (referralChecking) {
@@ -315,7 +322,11 @@ export default function CheckoutPage() {
       });
       const json = await res.json();
       if (json.error_code !== 0) {
-        alert(json.msg || 'Gagal menyimpan pesanan');
+        if (json.code === 'stock_unavailable') {
+          stock.showUnavailable(json.msg);
+        } else {
+          alert(json.msg || 'Gagal menyimpan pesanan');
+        }
         setSubmitting(false);
         return;
       }

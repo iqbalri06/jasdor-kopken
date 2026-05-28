@@ -24,6 +24,14 @@ export default function AdminSettingsPage() {
         />
 
         <SettingItem
+          icon={<Icon.Bag size={20} />}
+          iconBg="bg-indigo-50 text-indigo-600"
+          title="Stok Akun"
+          desc="Atur jumlah stok & pesan saat habis"
+          onClick={() => setActiveSection('stock')}
+        />
+
+        <SettingItem
           icon={<Icon.Receipt size={20} />}
           iconBg="bg-blue-50 text-blue-600"
           title="Biaya Jasa Order"
@@ -84,6 +92,11 @@ export default function AdminSettingsPage() {
       {activeSection === 'service' && (
         <SectionModal title="Status Layanan" onClose={() => setActiveSection(null)}>
           <ServiceSection />
+        </SectionModal>
+      )}
+      {activeSection === 'stock' && (
+        <SectionModal title="Stok Akun" onClose={() => setActiveSection(null)}>
+          <StockSection />
         </SectionModal>
       )}
       {activeSection === 'fee' && (
@@ -1540,4 +1553,279 @@ function translateSignal(type) {
     past_blocked: 'Pernah di-block sebelumnya',
   };
   return map[type] || type;
+}
+
+
+function StockSection() {
+  const [config, setConfig] = useState({
+    count: 10,
+    message: '',
+    auto_manage: true,
+    enabled: true,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    try {
+      const pw = sessionStorage.getItem('admin-auth') || '';
+      const res = await fetch('/api/account-stock', {
+        headers: { 'x-admin-password': pw },
+      });
+      const json = await res.json();
+      if (json.error_code === 0 && json.data) setConfig(json.data);
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function save() {
+    setSaving(true);
+    setMsg('');
+    try {
+      const pw = sessionStorage.getItem('admin-auth') || '';
+      const res = await fetch('/api/account-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+        body: JSON.stringify(config),
+      });
+      const json = await res.json();
+      if (json.error_code === 0) {
+        setConfig(json.data);
+        setMsg('Tersimpan');
+        setTimeout(() => setMsg(''), 1500);
+      } else {
+        setMsg(json.msg || 'Gagal');
+      }
+    } catch (e) {
+      setMsg(e.message || 'Gagal');
+    }
+    setSaving(false);
+  }
+
+  async function adjust(delta) {
+    const pw = sessionStorage.getItem('admin-auth') || '';
+    try {
+      const res = await fetch('/api/account-stock', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+        body: JSON.stringify({ delta }),
+      });
+      const json = await res.json();
+      if (json.error_code === 0) setConfig(json.data);
+    } catch (_) {}
+  }
+
+  if (loading) return <Icon.Spinner size={20} className="mx-auto mt-8 text-ink-400" />;
+
+  const isLow = config.count > 0 && config.count <= 3;
+  const isEmpty = config.count <= 0;
+
+  return (
+    <div className="space-y-4">
+      {/* Hero stok */}
+      <div
+        className={
+          'rounded-2xl p-5 text-white relative overflow-hidden ' +
+          (isEmpty
+            ? 'bg-gradient-to-br from-red-500 to-red-700'
+            : isLow
+            ? 'bg-gradient-to-br from-amber-500 to-orange-600'
+            : 'bg-gradient-to-br from-ink-900 to-accent-700')
+        }
+      >
+        <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/15 blur-2xl" />
+        <div className="relative">
+          <p className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
+            Stok Tersedia
+          </p>
+          <p className="text-4xl font-extrabold mt-1 tracking-tight">{config.count}</p>
+          <p className="text-[10px] opacity-80 mt-1">
+            {isEmpty
+              ? 'User akan melihat pesan custom'
+              : isLow
+              ? 'Stok hampir habis'
+              : 'Auto-decrement saat order masuk'}
+          </p>
+
+          <div className="grid grid-cols-4 gap-1.5 mt-4">
+            <button
+              onClick={() => adjust(-1)}
+              disabled={config.count <= 0}
+              className="bg-white/15 hover:bg-white/25 disabled:opacity-30 backdrop-blur transition rounded-lg py-2 text-xs font-bold"
+            >
+              -1
+            </button>
+            <button
+              onClick={() => adjust(1)}
+              className="bg-white/15 hover:bg-white/25 backdrop-blur transition rounded-lg py-2 text-xs font-bold"
+            >
+              +1
+            </button>
+            <button
+              onClick={() => adjust(5)}
+              className="bg-white/15 hover:bg-white/25 backdrop-blur transition rounded-lg py-2 text-xs font-bold"
+            >
+              +5
+            </button>
+            <button
+              onClick={() => adjust(10)}
+              className="bg-white/15 hover:bg-white/25 backdrop-blur transition rounded-lg py-2 text-xs font-bold"
+            >
+              +10
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Toggle aktif */}
+      <div className="rounded-2xl bg-white p-4 space-y-3">
+        <Toggle
+          label="Aktifkan Sistem Stok"
+          desc="User tidak bisa order saat stok 0"
+          checked={config.enabled}
+          onChange={(v) => setConfig({ ...config, enabled: v })}
+        />
+
+        <Toggle
+          label="Auto-Decrement"
+          desc="Stok otomatis berkurang tiap order baru"
+          checked={config.auto_manage}
+          onChange={(v) => setConfig({ ...config, auto_manage: v })}
+        />
+      </div>
+
+      {/* Set count manual */}
+      <div className="rounded-2xl bg-white p-4 space-y-3">
+        <div>
+          <label className="text-xs font-bold text-ink-900">Set Stok Manual</label>
+          <p className="text-[10px] text-ink-500 mt-0.5">
+            Atur stok pasti (override jumlah saat ini)
+          </p>
+          <input
+            type="number"
+            min="0"
+            value={config.count}
+            onChange={(e) =>
+              setConfig({ ...config, count: Math.max(0, Number(e.target.value) || 0) })
+            }
+            className="w-full mt-1.5 bg-ink-50 border border-ink-200 rounded-xl px-4 py-3 text-2xl font-extrabold text-center outline-none focus:border-ink-900 focus:bg-white transition"
+          />
+          <div className="grid grid-cols-4 gap-1.5 mt-2">
+            {[0, 5, 10, 25].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setConfig({ ...config, count: v })}
+                className="text-xs font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 py-1.5 rounded-lg transition"
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-ink-900">
+            Pesan Saat Stok Habis
+          </label>
+          <p className="text-[10px] text-ink-500 mt-0.5">
+            Pesan ini muncul ke user saat stok 0. JANGAN sebut stok habis — beri alasan
+            netral biar mereka coba lagi nanti.
+          </p>
+          <textarea
+            value={config.message}
+            onChange={(e) => setConfig({ ...config, message: e.target.value })}
+            placeholder="Mohon maaf, layanan sedang sibuk. Silakan coba lagi dalam beberapa saat ya."
+            rows={3}
+            maxLength={300}
+            className="w-full mt-1.5 bg-ink-50 border border-ink-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-ink-900 focus:bg-white transition resize-none"
+          />
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {[
+              'Mohon maaf, layanan sedang sibuk. Silakan coba lagi dalam beberapa saat ya.',
+              'Saat ini sedang ada gangguan teknis. Coba lagi 1 jam dari sekarang ya.',
+              'Mohon maaf, ada perbaikan sistem singkat. Silakan coba lagi nanti.',
+              'Layanan sedang antrian panjang. Coba ulang dalam beberapa menit.',
+            ].map((preset, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setConfig({ ...config, message: preset })}
+                className="text-[10px] font-medium bg-ink-100 hover:bg-ink-200 text-ink-700 px-2.5 py-1 rounded-md transition truncate max-w-full"
+                title={preset}
+              >
+                Preset {i + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {msg && (
+          <p
+            className={
+              'text-xs font-semibold ' +
+              (msg === 'Tersimpan' ? 'text-emerald-600' : 'text-red-600')
+            }
+          >
+            {msg}
+          </p>
+        )}
+
+        <button
+          onClick={save}
+          disabled={saving}
+          className="w-full bg-ink-900 text-white text-sm font-bold py-3.5 rounded-xl hover:bg-ink-800 active:scale-[.98] transition disabled:bg-ink-300 flex items-center justify-center gap-2"
+        >
+          {saving ? <Icon.Spinner size={14} /> : null}
+          Simpan Konfigurasi
+        </button>
+      </div>
+
+      {/* Info */}
+      <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex gap-2">
+        <Icon.Info size={14} className="text-amber-700 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-amber-800 leading-relaxed">
+          <p className="font-bold mb-0.5">Tips Anti-Hint:</p>
+          <p>
+            Hindari kata &quot;stok habis&quot;, &quot;akun penuh&quot;, atau pesan yang
+            membocorkan info bisnis. Pakai pesan netral seperti &quot;layanan sibuk&quot;
+            atau &quot;perbaikan sistem&quot; supaya kompetitor tidak tahu kapasitas kamu.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ label, desc, checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className="w-full flex items-center gap-3 text-left"
+    >
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-ink-900">{label}</p>
+        <p className="text-[10px] text-ink-500 mt-0.5">{desc}</p>
+      </div>
+      <div
+        className={
+          'w-11 h-6 rounded-full p-0.5 transition shrink-0 ' +
+          (checked ? 'bg-emerald-500' : 'bg-ink-200')
+        }
+      >
+        <div
+          className={
+            'w-5 h-5 rounded-full bg-white shadow transition ' +
+            (checked ? 'translate-x-5' : 'translate-x-0')
+          }
+        />
+      </div>
+    </button>
+  );
 }
