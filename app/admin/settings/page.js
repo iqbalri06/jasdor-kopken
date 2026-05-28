@@ -54,6 +54,30 @@ export default function AdminSettingsPage() {
           desc="Upload foto testimoni pelanggan"
           onClick={() => setActiveSection('testimonials')}
         />
+
+        <SettingItem
+          icon={<Icon.Gift size={20} />}
+          iconBg="bg-accent-50 text-accent-600"
+          title="Program Referral"
+          desc="Atur reward & minimum penarikan"
+          onClick={() => setActiveSection('referral')}
+        />
+
+        <SettingItem
+          icon={<Icon.ArrowRight size={20} />}
+          iconBg="bg-amber-50 text-amber-700"
+          title="Penarikan Saldo"
+          desc="Kelola request withdrawal"
+          onClick={() => setActiveSection('withdrawals')}
+        />
+
+        <SettingItem
+          icon={<Icon.AlertTriangle size={20} />}
+          iconBg="bg-red-50 text-red-600"
+          title="Review Anti-Fraud"
+          desc="Referral mencurigakan butuh review"
+          onClick={() => setActiveSection('flagged')}
+        />
       </div>
 
       {/* Modal sections */}
@@ -80,6 +104,21 @@ export default function AdminSettingsPage() {
       {activeSection === 'testimonials' && (
         <SectionModal title="Testimoni" onClose={() => setActiveSection(null)}>
           <TestimonialsSection />
+        </SectionModal>
+      )}
+      {activeSection === 'referral' && (
+        <SectionModal title="Program Referral" onClose={() => setActiveSection(null)}>
+          <ReferralConfigSection />
+        </SectionModal>
+      )}
+      {activeSection === 'withdrawals' && (
+        <SectionModal title="Penarikan Saldo" onClose={() => setActiveSection(null)}>
+          <WithdrawalsSection />
+        </SectionModal>
+      )}
+      {activeSection === 'flagged' && (
+        <SectionModal title="Review Anti-Fraud" onClose={() => setActiveSection(null)}>
+          <FlaggedReferralsSection />
         </SectionModal>
       )}
     </AdminLayout>
@@ -908,4 +947,597 @@ function TestimonialsSection() {
       </div>
     </div>
   );
+}
+
+
+function ReferralConfigSection() {
+  const [config, setConfig] = useState({ reward: 2000, min_withdraw: 10000, enabled: true });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    try {
+      const res = await fetch('/api/referral/config');
+      const json = await res.json();
+      if (json.error_code === 0) setConfig(json.data);
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function save(next) {
+    setSaving(true);
+    setMsg('');
+    try {
+      const pw = sessionStorage.getItem('admin-auth') || '';
+      const res = await fetch('/api/referral/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+        body: JSON.stringify(next),
+      });
+      const json = await res.json();
+      if (json.error_code === 0) {
+        setConfig(json.data);
+        setMsg('Tersimpan');
+        setTimeout(() => setMsg(''), 1500);
+      } else {
+        setMsg(json.msg || 'Gagal simpan');
+      }
+    } catch (e) {
+      setMsg(e.message || 'Gagal simpan');
+    }
+    setSaving(false);
+  }
+
+  if (loading) return <Icon.Spinner size={20} className="mx-auto mt-8 text-ink-400" />;
+
+  return (
+    <div className="space-y-4">
+      <div
+        className={
+          'rounded-2xl p-5 text-white relative overflow-hidden ' +
+          (config.enabled
+            ? 'bg-gradient-to-br from-ink-900 via-ink-800 to-accent-700'
+            : 'bg-gradient-to-br from-ink-700 to-ink-900')
+        }
+      >
+        <div className="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-white/15 blur-2xl" />
+        <div className="relative flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur grid place-items-center">
+            <Icon.Gift size={20} />
+          </div>
+          <div className="flex-1">
+            <p className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
+              Program Referral
+            </p>
+            <p className="text-base font-extrabold mt-0.5">
+              {config.enabled ? 'Aktif' : 'Nonaktif'}
+            </p>
+            <p className="text-[10px] opacity-80 mt-0.5">
+              Reward {rupiah(config.reward)} / referral
+            </p>
+          </div>
+          <button
+            onClick={() => save({ ...config, enabled: !config.enabled })}
+            disabled={saving}
+            className="text-xs font-bold bg-white/20 hover:bg-white/30 backdrop-blur px-3 py-2 rounded-lg transition"
+          >
+            {config.enabled ? 'Matikan' : 'Aktifkan'}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-white p-4 space-y-3">
+        <div>
+          <label className="text-xs font-bold text-ink-900">Reward per Referral</label>
+          <p className="text-[10px] text-ink-500 mt-0.5">
+            Saldo yang diberikan ke referrer saat order selesai
+          </p>
+          <div className="mt-1.5 relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-500">
+              Rp
+            </span>
+            <input
+              type="number"
+              value={config.reward}
+              onChange={(e) =>
+                setConfig({ ...config, reward: Number(e.target.value) || 0 })
+              }
+              className="w-full bg-ink-50 border border-ink-200 rounded-xl pl-12 pr-4 py-3 text-base font-bold outline-none focus:border-ink-900 focus:bg-white transition"
+            />
+          </div>
+          <div className="flex gap-2 mt-2">
+            {[1000, 2000, 3000, 5000].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setConfig({ ...config, reward: v })}
+                className="text-xs font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 px-3 py-1.5 rounded-lg transition"
+              >
+                {rupiah(v)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-ink-900">Minimum Penarikan</label>
+          <p className="text-[10px] text-ink-500 mt-0.5">Saldo minimum untuk withdraw</p>
+          <div className="mt-1.5 relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-500">
+              Rp
+            </span>
+            <input
+              type="number"
+              value={config.min_withdraw}
+              onChange={(e) =>
+                setConfig({ ...config, min_withdraw: Number(e.target.value) || 0 })
+              }
+              className="w-full bg-ink-50 border border-ink-200 rounded-xl pl-12 pr-4 py-3 text-base font-bold outline-none focus:border-ink-900 focus:bg-white transition"
+            />
+          </div>
+          <div className="flex gap-2 mt-2">
+            {[5000, 10000, 25000, 50000].map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setConfig({ ...config, min_withdraw: v })}
+                className="text-xs font-semibold bg-ink-100 hover:bg-ink-200 text-ink-700 px-3 py-1.5 rounded-lg transition"
+              >
+                {rupiah(v)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {msg && (
+          <p
+            className={
+              'text-xs font-semibold ' +
+              (msg === 'Tersimpan' ? 'text-emerald-600' : 'text-red-600')
+            }
+          >
+            {msg}
+          </p>
+        )}
+
+        <button
+          onClick={() => save(config)}
+          disabled={saving}
+          className="w-full bg-ink-900 text-white text-sm font-bold py-3.5 rounded-xl hover:bg-ink-800 active:scale-[.98] transition disabled:bg-ink-300 flex items-center justify-center gap-2"
+        >
+          {saving ? <Icon.Spinner size={14} /> : null}
+          Simpan Konfigurasi
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WithdrawalsSection() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('pending');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const pw = sessionStorage.getItem('admin-auth') || '';
+      const res = await fetch('/api/referral/withdraw', {
+        headers: { 'x-admin-password': pw },
+      });
+      const json = await res.json();
+      if (json.error_code === 0) setList(json.data || []);
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function updateStatus(id, status, notes = '') {
+    const pw = sessionStorage.getItem('admin-auth') || '';
+    try {
+      const res = await fetch(`/api/referral/withdraw/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+        body: JSON.stringify({ status, notes }),
+      });
+      const json = await res.json();
+      if (json.error_code === 0) {
+        setMsg('Tersimpan');
+        setTimeout(() => setMsg(''), 1500);
+        await load();
+      } else {
+        setMsg(json.msg || 'Gagal');
+      }
+    } catch (e) {
+      setMsg(e.message || 'Gagal');
+    }
+  }
+
+  const filtered = list.filter((w) =>
+    filter === 'all' ? true : w.status === filter
+  );
+
+  const counts = {
+    all: list.length,
+    pending: list.filter((w) => w.status === 'pending').length,
+    processing: list.filter((w) => w.status === 'processing').length,
+    completed: list.filter((w) => w.status === 'completed').length,
+    rejected: list.filter((w) => w.status === 'rejected').length,
+  };
+
+  if (loading) return <Icon.Spinner size={20} className="mx-auto mt-8 text-ink-400" />;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        {[
+          { key: 'pending', label: 'Pending' },
+          { key: 'processing', label: 'Diproses' },
+          { key: 'completed', label: 'Selesai' },
+          { key: 'rejected', label: 'Ditolak' },
+          { key: 'all', label: 'Semua' },
+        ].map((s) => (
+          <button
+            key={s.key}
+            onClick={() => setFilter(s.key)}
+            className={
+              'shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition inline-flex items-center gap-1.5 ' +
+              (filter === s.key
+                ? 'bg-ink-900 text-white'
+                : 'bg-white text-ink-700 border border-ink-200')
+            }
+          >
+            {s.label}
+            <span
+              className={
+                'text-[10px] px-1.5 rounded-full ' +
+                (filter === s.key ? 'bg-white/20' : 'bg-ink-100')
+              }
+            >
+              {counts[s.key]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {msg && (
+        <p className="text-xs text-emerald-600 font-semibold text-center">{msg}</p>
+      )}
+
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl bg-white border border-ink-200 p-8 text-center">
+          <p className="text-xs text-ink-500">Tidak ada penarikan</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((w) => (
+            <WithdrawalCard key={w.id} w={w} onUpdate={updateStatus} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WithdrawalCard({ w, onUpdate }) {
+  const [expanded, setExpanded] = useState(false);
+  const statusInfo = {
+    pending: { label: 'Pending', cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    processing: { label: 'Diproses', cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+    completed: { label: 'Selesai', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    rejected: { label: 'Ditolak', cls: 'bg-red-100 text-red-700 border-red-200' },
+  }[w.status] || { label: w.status, cls: 'bg-ink-100 text-ink-700' };
+
+  const methodLabel = {
+    dana: 'DANA',
+    shopeepay: 'ShopeePay',
+    seabank: 'SeaBank',
+  }[w.method] || w.method;
+
+  const phoneDisplay = w.phone.startsWith('62')
+    ? '0' + w.phone.slice(2)
+    : w.phone;
+
+  return (
+    <div className="rounded-2xl bg-white border border-ink-200 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 flex items-center gap-2.5 text-left hover:bg-ink-50 transition"
+      >
+        <div className="w-10 h-10 rounded-xl bg-ink-100 grid place-items-center text-ink-700 shrink-0">
+          <Icon.ArrowRight size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-ink-900">{rupiah(w.amount)}</span>
+            <span
+              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusInfo.cls}`}
+            >
+              {statusInfo.label}
+            </span>
+          </div>
+          <p className="text-[11px] text-ink-500 mt-0.5 truncate">
+            {methodLabel} • {w.account_name}
+          </p>
+        </div>
+        <Icon.ChevronRight
+          size={14}
+          className={'text-ink-400 transition ' + (expanded ? 'rotate-90' : '')}
+        />
+      </button>
+
+      {expanded && (
+        <div className="border-t border-ink-100 p-3 space-y-2 fade-up bg-ink-50/50">
+          <Detail label="Pemohon" value={phoneDisplay} mono />
+          <Detail label="Metode" value={methodLabel} />
+          <Detail label={`Nomor ${methodLabel}`} value={w.account_number} mono />
+          <Detail label="Atas Nama" value={w.account_name} />
+          <Detail
+            label="Tanggal"
+            value={new Date(w.created_at).toLocaleString('id-ID', {
+              dateStyle: 'short',
+              timeStyle: 'short',
+            })}
+          />
+          {w.notes && <Detail label="Catatan" value={w.notes} />}
+
+          {w.status === 'pending' && (
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => onUpdate(w.id, 'processing')}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-2 rounded-lg transition"
+              >
+                Proses
+              </button>
+              <button
+                onClick={() => {
+                  const reason = prompt('Alasan penolakan?');
+                  if (reason !== null) onUpdate(w.id, 'rejected', reason);
+                }}
+                className="flex-1 bg-white border border-red-300 text-red-600 hover:bg-red-50 text-xs font-bold py-2 rounded-lg transition"
+              >
+                Tolak
+              </button>
+            </div>
+          )}
+          {w.status === 'processing' && (
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => onUpdate(w.id, 'completed')}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 rounded-lg transition inline-flex items-center justify-center gap-1"
+              >
+                <Icon.Check size={12} strokeWidth={3} />
+                Tandai Selesai
+              </button>
+              <a
+                href={`https://wa.me/${w.phone}?text=${encodeURIComponent(`Halo, penarikan saldo Rp ${w.amount.toLocaleString('id-ID')} ke ${methodLabel} (${w.account_number}) sudah saya proses. Mohon dicek ya, terima kasih.`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-xs font-bold py-2 px-3 rounded-lg transition inline-flex items-center gap-1"
+              >
+                <Icon.WhatsApp size={12} />
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Detail({ label, value, mono }) {
+  return (
+    <div className="flex items-center justify-between text-[11px]">
+      <span className="text-ink-500">{label}</span>
+      <span className={'font-semibold text-ink-900 ' + (mono ? 'font-mono' : '')}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+
+function FlaggedReferralsSection() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null);
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const pw = sessionStorage.getItem('admin-auth') || '';
+      const res = await fetch('/api/admin/referral/flagged', {
+        headers: { 'x-admin-password': pw },
+      });
+      const json = await res.json();
+      if (json.error_code === 0) setList(json.data || []);
+    } catch (_) {}
+    setLoading(false);
+  }
+
+  async function handleAction(id, action) {
+    setBusy(id);
+    try {
+      const pw = sessionStorage.getItem('admin-auth') || '';
+      const res = await fetch(`/api/admin/referral/flagged/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pw },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json();
+      if (json.error_code === 0) {
+        setList((prev) => prev.filter((r) => r.id !== id));
+      }
+    } catch (_) {}
+    setBusy(null);
+  }
+
+  if (loading) return <Icon.Spinner size={20} className="mx-auto mt-8 text-ink-400" />;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl bg-gradient-to-br from-red-500 to-red-700 text-white p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/20 grid place-items-center">
+            <Icon.AlertTriangle size={20} />
+          </div>
+          <div>
+            <p className="text-sm font-bold">{list.length} Referral Mencurigakan</p>
+            <p className="text-[10px] opacity-80 mt-0.5">
+              Review manual dibutuhkan sebelum credit
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="rounded-2xl bg-white border border-ink-200 p-8 text-center">
+          <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 grid place-items-center text-emerald-600 mb-2">
+            <Icon.Check size={20} strokeWidth={3} />
+          </div>
+          <p className="text-xs text-ink-500">Tidak ada referral yang perlu di-review</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {list.map((r) => (
+            <FlaggedCard
+              key={r.id}
+              ref_={r}
+              busy={busy === r.id}
+              onAction={(action) => handleAction(r.id, action)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FlaggedCard({ ref_, busy, onAction }) {
+  const [expanded, setExpanded] = useState(false);
+  const signals = ref_.fraud_signals || [];
+
+  return (
+    <div className="rounded-2xl bg-white border border-red-200 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 flex items-center gap-2.5 text-left hover:bg-red-50 transition"
+      >
+        <div className="w-10 h-10 rounded-xl bg-red-50 grid place-items-center text-red-600 shrink-0">
+          <Icon.AlertTriangle size={16} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-ink-900 truncate">
+              {ref_.referee_name || 'Anonim'}
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+              Score {ref_.fraud_score}
+            </span>
+          </div>
+          <p className="text-[11px] text-ink-500 mt-0.5 truncate">
+            {ref_.referrer_code} → Order {ref_.order_id}
+          </p>
+        </div>
+        <Icon.ChevronRight
+          size={14}
+          className={'text-ink-400 transition ' + (expanded ? 'rotate-90' : '')}
+        />
+      </button>
+
+      {expanded && (
+        <div className="border-t border-red-100 p-3 space-y-2 bg-red-50/40">
+          <div className="text-[11px] space-y-1">
+            <Detail label="Referee" value={ref_.referee_phone} mono />
+            <Detail label="Referrer" value={ref_.referrer_phone} mono />
+            <Detail label="Reward" value={'Rp ' + ref_.reward.toLocaleString('id-ID')} />
+            <Detail
+              label="Tanggal"
+              value={new Date(ref_.created_at).toLocaleString('id-ID', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })}
+            />
+          </div>
+
+          {signals.length > 0 && (
+            <div className="rounded-lg bg-white border border-red-200 p-2 space-y-1">
+              <p className="text-[10px] font-bold text-ink-700 uppercase tracking-wider">
+                Sinyal Fraud
+              </p>
+              {signals.map((s, i) => (
+                <div key={i} className="flex items-center justify-between text-[10px]">
+                  <span className="text-ink-700">{translateSignal(s.type)}</span>
+                  <span
+                    className={
+                      'font-bold uppercase ' +
+                      (s.severity === 'critical'
+                        ? 'text-red-700'
+                        : s.severity === 'high'
+                        ? 'text-red-600'
+                        : s.severity === 'medium'
+                        ? 'text-amber-600'
+                        : 'text-ink-500')
+                    }
+                  >
+                    {s.severity}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => onAction('approve')}
+              disabled={busy}
+              className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:bg-ink-300 text-white text-xs font-bold py-2 rounded-lg transition inline-flex items-center justify-center gap-1"
+            >
+              {busy ? <Icon.Spinner size={12} /> : <Icon.Check size={12} strokeWidth={3} />}
+              Approve
+            </button>
+            <button
+              onClick={() => onAction('reject')}
+              disabled={busy}
+              className="flex-1 bg-white border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50 text-xs font-bold py-2 rounded-lg transition inline-flex items-center justify-center gap-1"
+            >
+              <Icon.Close size={12} />
+              Reject
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function translateSignal(type) {
+  const map = {
+    same_fingerprint: 'Same device dengan referrer',
+    same_ip: 'Same IP dengan referrer',
+    fresh_referrer: 'Referrer baru daftar (< 1 jam)',
+    young_referrer: 'Referrer baru (< 24 jam)',
+    burst_high: 'Banyak referral dalam 1 jam',
+    burst_medium: 'Beberapa referral dalam 1 jam',
+    fake_phone_pattern: 'Pola nomor mencurigakan',
+    repeated_same_pair: 'Pair referrer-referee sama berulang',
+    repeat_referee: 'Referee sudah pernah dipakai',
+    same_name: 'Nama customer = referrer',
+    referrer_banned: 'Referrer di-banned',
+    past_blocked: 'Pernah di-block sebelumnya',
+  };
+  return map[type] || type;
 }

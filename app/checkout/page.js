@@ -9,6 +9,7 @@ import { Icon } from '@/components/Icons';
 import { useServiceStatus } from '@/components/ServiceStatus';
 import { saveOrderToHistory } from '@/app/orders/page';
 import MapPicker from '@/components/MapPicker';
+import { normalizePhone, isValidPhone } from '@/lib/phone';
 
 const ADMIN_WA = '6281291544061';
 
@@ -66,13 +67,134 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const serviceStatus = useServiceStatus();
 
+  // Referral state
+  const [referralCode, setReferralCode] = useState('');
+  const [referralData, setReferralData] = useState(null); // { code, referrer_name, reward }
+  const [referralError, setReferralError] = useState('');
+  const [referralChecking, setReferralChecking] = useState(false);
+
+  // Saldo state
+  const [userBalance, setUserBalance] = useState(0);
+  const [useBalance, setUseBalance] = useState(false);
+  const [balanceChecked, setBalanceChecked] = useState(false);
+  const [ownReferralCode, setOwnReferralCode] = useState(''); // kode milik user sendiri (untuk dideteksi)
+
   useEffect(() => {
     if (pickup.type === 'later' && !pickup.time) {
       setPickup({ type: 'later', time: addMinutes(nowHHMM(), 30) });
     }
   }, [pickup.type]); // eslint-disable-line
 
+  // Auto-fill referral code dari URL atau localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('ref');
+    if (fromUrl) {
+      setReferralCode(fromUrl.toUpperCase());
+      try {
+        localStorage.setItem('ref-code', fromUrl.toUpperCase());
+      } catch (_) {}
+      return;
+    }
+    try {
+      const saved = localStorage.getItem('ref-code');
+      if (saved) setReferralCode(saved);
+    } catch (_) {}
+  }, []);
+
+  // Auto-fill nama & nomor dari localStorage referral
+  useEffect(() => {
+    try {
+      const savedPhone = localStorage.getItem('referral-phone');
+      if (savedPhone && !phone) {
+        // Convert 62xxx → 08xxx untuk display
+        const display = savedPhone.startsWith('62') ? '0' + savedPhone.slice(2) : savedPhone;
+        setPhone(display);
+      }
+    } catch (_) {}
+  }, []); // eslint-disable-line
+
+  // Cek saldo + kode milik sendiri saat phone input berubah
+  useEffect(() => {
+    if (!isValidPhone(phone)) {
+      setUserBalance(0);
+      setBalanceChecked(false);
+      setUseBalance(false);
+      setOwnReferralCode('');
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/referral/me?phone=${encodeURIComponent(normalizePhone(phone))}`
+        );
+        const json = await res.json();
+        if (json.error_code === 0) {
+          setUserBalance(json.data?.balance || 0);
+          setBalanceChecked(true);
+          setOwnReferralCode((json.data?.referral_code || '').toUpperCase());
+        }
+      } catch (_) {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [phone]);
+
+  // Auto-clear kode referral kalau itu adalah kode milik user sendiri
+  useEffect(() => {
+    if (!ownReferralCode || !referralCode) return;
+    if (referralCode.toUpperCase() === ownReferralCode) {
+      setReferralCode('');
+      setReferralData(null);
+      setReferralError('');
+      try {
+        localStorage.removeItem('ref-code');
+      } catch (_) {}
+    }
+  }, [ownReferralCode, referralCode]);
+
+  // Validate referral code (debounced) — re-trigger setiap kode atau phone berubah
+  useEffect(() => {
+    if (!referralCode.trim()) {
+      setReferralData(null);
+      setReferralError('');
+      return;
+    }
+    // Reset state ke checking dulu agar UI tidak tampak "valid" pakai data stale
+    setReferralData(null);
+    const t = setTimeout(async () => {
+      setReferralChecking(true);
+      setReferralError('');
+      try {
+        const res = await fetch(
+          `/api/referral/validate?code=${encodeURIComponent(referralCode)}&phone=${encodeURIComponent(phone)}`
+        );
+        const json = await res.json();
+        if (json.error_code === 0) {
+          setReferralData(json.data);
+          setReferralError('');
+        } else {
+          setReferralData(null);
+          setReferralError(json.msg || 'Kode tidak valid');
+        }
+      } catch (_) {
+        setReferralData(null);
+        setReferralError('Gagal validasi');
+      }
+      setReferralChecking(false);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [referralCode, phone]);
+
   const minPickupTime = addMinutes(nowHHMM(), 15);
+
+  // Compute balance to use & final total
+  const balanceUsed = useMemo(() => {
+    if (!useBalance || userBalance <= 0) return 0;
+    return Math.min(userBalance, total);
+  }, [useBalance, userBalance, total]);
+
+  const finalTotal = total - balanceUsed;
 
   const errors = {
     name: !name.trim() ? 'Nama tidak boleh kosong' : '',
@@ -114,6 +236,31 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Block submit kalau kode referral belum tervalidasi atau bermasalah
+    if (referralCode.trim()) {
+      if (referralChecking) {
+        alert('Tunggu sebentar, kode referral sedang diverifikasi...');
+        return;
+      }
+      if (referralError) {
+        alert(referralError);
+        return;
+      }
+      if (!referralData) {
+        alert('Kode referral tidak valid. Hapus kode atau perbaiki dulu.');
+        return;
+      }
+      // Final check self-referral di client (defense-in-depth)
+      const normalizedPhone = normalizePhone(phone);
+      const normalizedReferrer = normalizePhone(referralData.referrer_phone || '');
+      if (normalizedPhone && normalizedReferrer && normalizedPhone === normalizedReferrer) {
+        alert('Tidak bisa pakai kode referral milikmu sendiri.');
+        setReferralData(null);
+        setReferralError('Tidak bisa pakai kode referral milikmu sendiri');
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     // Generate kode unik 3 digit (100-999)
@@ -150,8 +297,10 @@ export default function CheckoutPage() {
       discountCapped,
       serviceFee,
       total,           // total tanpa kode unik
+      balanceUsed,     // saldo referral yang dipotong
+      referralCode: referralData?.code || '',
       uniqueCode,      // kode unik 3 digit
-      totalToPay: total + uniqueCode, // total final yang harus dibayar
+      totalToPay: finalTotal + uniqueCode, // total final yang harus dibayar (setelah saldo)
     };
 
     const token = encodeOrder(order);
@@ -159,12 +308,22 @@ export default function CheckoutPage() {
 
     // Simpan order ke database
     try {
-      await fetch('/api/orders', {
+      const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(order),
       });
-    } catch (_) {}
+      const json = await res.json();
+      if (json.error_code !== 0) {
+        alert(json.msg || 'Gagal menyimpan pesanan');
+        setSubmitting(false);
+        return;
+      }
+    } catch (e) {
+      alert('Gagal menyimpan pesanan: ' + (e.message || 'unknown'));
+      setSubmitting(false);
+      return;
+    }
 
     // Simpan ke riwayat user
     saveOrderToHistory(orderId);
@@ -386,6 +545,110 @@ export default function CheckoutPage() {
             </section>
             )}
 
+            <section className="rounded-2xl bg-white border border-ink-200 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 grid place-items-center text-emerald-600">
+                  <Icon.Gift size={16} />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-sm font-semibold text-ink-900">Kode Referral & Saldo</h2>
+                  <p className="text-[11px] text-ink-500 mt-0.5">
+                    Pakai kode teman atau saldo referral kamu
+                  </p>
+                </div>
+              </div>
+
+              {/* Saldo */}
+              {balanceChecked && userBalance > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setUseBalance(!useBalance)}
+                  className={
+                    'w-full rounded-xl border p-3 flex items-center gap-3 transition active:scale-[.99] text-left ' +
+                    (useBalance
+                      ? 'border-ink-900 bg-ink-900 text-white'
+                      : 'border-ink-200 bg-white hover:border-ink-400')
+                  }
+                >
+                  <div
+                    className={
+                      'w-9 h-9 rounded-lg grid place-items-center shrink-0 ' +
+                      (useBalance ? 'bg-white/15' : 'bg-emerald-50 text-emerald-600')
+                    }
+                  >
+                    <Icon.Tag size={16} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold">
+                      {useBalance ? 'Saldo dipakai' : 'Pakai saldo referral'}
+                    </p>
+                    <p
+                      className={
+                        'text-[10px] mt-0.5 ' + (useBalance ? 'opacity-80' : 'text-ink-500')
+                      }
+                    >
+                      Saldo tersedia: {rupiah(userBalance)}
+                    </p>
+                  </div>
+                  <div
+                    className={
+                      'w-5 h-5 rounded-md border-2 grid place-items-center shrink-0 ' +
+                      (useBalance ? 'bg-white border-white text-ink-900' : 'border-ink-300')
+                    }
+                  >
+                    {useBalance && <Icon.Check size={12} strokeWidth={3} />}
+                  </div>
+                </button>
+              )}
+
+              {/* Kode referral */}
+              <div>
+                <label className="text-[11px] font-bold text-ink-700">
+                  Kode Referral (opsional)
+                </label>
+                <div className="mt-1 relative">
+                  <input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    placeholder="cth: KKA8X2K9"
+                    className={
+                      'w-full bg-ink-50 border rounded-xl pl-3 pr-10 py-2.5 text-sm font-bold tracking-wider outline-none focus:bg-white transition ' +
+                      (referralData
+                        ? 'border-emerald-500 text-emerald-700'
+                        : referralError
+                        ? 'border-red-300'
+                        : 'border-ink-200 focus:border-ink-900')
+                    }
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {referralChecking ? (
+                      <Icon.Spinner size={14} className="text-ink-400" />
+                    ) : referralData ? (
+                      <Icon.Check size={16} className="text-emerald-600" strokeWidth={3} />
+                    ) : referralError ? (
+                      <Icon.Close size={14} className="text-red-500" />
+                    ) : null}
+                  </div>
+                </div>
+                {referralData && (
+                  <p className="text-[11px] text-emerald-600 font-semibold mt-1.5 flex items-center gap-1">
+                    <Icon.Check size={12} strokeWidth={3} />
+                    Kode dari {referralData.referrer_name}
+                  </p>
+                )}
+                {referralError && (
+                  <p className="text-[11px] text-red-600 font-semibold mt-1.5">
+                    {referralError}
+                  </p>
+                )}
+              </div>
+
+              <p className="text-[10px] text-ink-500 leading-relaxed">
+                Belum punya kode? <a href="/referral" target="_blank" rel="noreferrer" className="text-ink-900 font-bold underline">Daftar di sini</a> untuk dapat kodemu sendiri.
+              </p>
+            </section>
+
             <section className="rounded-2xl bg-ink-900 text-white p-4 md:p-5 flex gap-3">
               <div className="w-10 h-10 rounded-full bg-white/15 grid place-items-center shrink-0 text-white">
                 <Icon.Info size={18} />
@@ -472,10 +735,17 @@ export default function CheckoutPage() {
                   {orderType === 'delivery' && deliveryFee > 0 && (
                     <Row label="Biaya delivery" value={rupiah(deliveryFee)} />
                   )}
+                  {balanceUsed > 0 && (
+                    <Row
+                      label="Saldo referral dipakai"
+                      value={`- ${rupiah(balanceUsed)}`}
+                      valueClass="text-emerald-600 font-semibold"
+                    />
+                  )}
                 </div>
                 <div className="border-t border-ink-200 mt-2 pt-2 flex justify-between items-baseline">
-                  <span className="font-semibold text-ink-900">Total</span>
-                  <span className="font-bold text-xl text-ink-900">{rupiah(total)}</span>
+                  <span className="font-semibold text-ink-900">Total Bayar</span>
+                  <span className="font-bold text-xl text-ink-900">{rupiah(finalTotal)}</span>
                 </div>
 
                 <div className="hidden md:flex flex-col gap-2 mt-4">

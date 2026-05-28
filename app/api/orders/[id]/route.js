@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
+import {
+  creditReferralReward,
+  cancelReferralReward,
+  refundBalanceOnCancel,
+} from '@/lib/referral';
 
 export const dynamic = 'force-dynamic';
 
 // GET: ambil order by ID (public — untuk halaman detail)
-export async function GET(request, { params }) {
+export async function GET(_request, { params }) {
   try {
     const sb = getSupabase();
     const { data, error } = await sb
@@ -44,20 +49,30 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const sb = getSupabase();
 
+    // Get current order untuk akses data customer & referral
+    const { data: row } = await sb
+      .from('orders')
+      .select('*')
+      .eq('id', params.id)
+      .maybeSingle();
+
     // Update status
     const update = { status: body.status };
     await sb.from('orders').update(update).eq('id', params.id);
 
     // Optional: update pickup_number di field data
-    if (body.pickup_number != null) {
-      const { data: row } = await sb
-        .from('orders')
-        .select('data')
-        .eq('id', params.id)
-        .maybeSingle();
-      if (row) {
-        const newData = { ...row.data, pickup_number: body.pickup_number };
-        await sb.from('orders').update({ data: newData }).eq('id', params.id);
+    if (body.pickup_number != null && row) {
+      const newData = { ...row.data, pickup_number: body.pickup_number };
+      await sb.from('orders').update({ data: newData }).eq('id', params.id);
+    }
+
+    // Trigger referral logic berdasarkan transisi status
+    if (row && body.status && row.status !== body.status) {
+      if (body.status === 'done') {
+        await creditReferralReward(sb, params.id);
+      } else if (body.status === 'cancelled') {
+        await cancelReferralReward(sb, params.id);
+        await refundBalanceOnCancel(sb, row.data || {});
       }
     }
 

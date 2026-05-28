@@ -26,6 +26,18 @@ function isExcludedProduct(p) {
 export default function HomePage() {
   const { setStore } = useCart();
 
+  // Capture referral code dari URL ?ref=XXX
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      try {
+        localStorage.setItem('ref-code', ref.toUpperCase());
+      } catch (_) {}
+    }
+  }, []);
+
   const [query, setQuery] = useState('');
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -269,6 +281,27 @@ export default function HomePage() {
                 </p>
               </div>
               <Icon.ChevronRight size={18} className="text-ink-400 shrink-0" />
+            </Link>
+          </section>
+        )}
+
+        {/* Referral CTA */}
+        {!searched && (
+          <section className="mt-3">
+            <Link
+              href="/referral"
+              className="w-full rounded-2xl bg-gradient-to-r from-accent-600 to-accent-700 text-white p-3.5 flex items-center gap-3 hover:opacity-95 active:scale-[.99] transition shadow-card"
+            >
+              <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur grid place-items-center shrink-0">
+                <Icon.Gift size={20} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-bold">Program Referral</p>
+                <p className="text-[11px] opacity-90 mt-0.5 leading-snug">
+                  Ajak teman, dapat saldo Rp 2.000 bisa ditarik ke e-wallet
+                </p>
+              </div>
+              <Icon.ChevronRight size={18} className="opacity-80 shrink-0" />
             </Link>
           </section>
         )}
